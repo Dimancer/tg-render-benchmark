@@ -1,100 +1,134 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --gold: #ffb400; --bg: #0f0f0f; }
-        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; overflow: hidden; }
-        .header { padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
-        #gameCanvas { width: 100%; height: 300px; background: #151515; }
-        .controls { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .main-btn { padding: 18px; border-radius: 12px; border: none; font-weight: bold; font-size: 18px; cursor: pointer; }
-        .btn-bet { background: var(--gold); color: black; }
-        .btn-cash { background: #00ff7f; color: black; }
-        input { background: #222; border: 1px solid #333; color: white; padding: 12px; border-radius: 8px; text-align: center; }
-        #mult { position: absolute; width: 100%; text-align: center; top: 150px; font-size: 48px; font-weight: bold; pointer-events: none; }
+        :root { --gold: #FFB400; --accent: #FF8A00; --bg: #0D0D0D; --card: #1A1A1A; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; height: 100vh; }
+        
+        .header { padding: 20px; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(to bottom, #1A1A1A, #0D0D0D); border-bottom: 2px solid #222; }
+        .balance-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .balance-value { font-family: 'Orbitron', sans-serif; font-size: 20px; color: var(--gold); text-shadow: 0 0 10px rgba(255,180,0,0.3); }
+
+        /* Game Area */
+        .game-container { position: relative; width: 100%; height: 350px; background: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%); overflow: hidden; }
+        #gameCanvas { width: 100%; height: 100%; }
+        #multiplier { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font-family: 'Orbitron', sans-serif; font-size: 64px; font-weight: 900; z-index: 10; pointer-events: none; text-shadow: 0 0 30px rgba(0,0,0,0.8); }
+
+        /* Controls */
+        .controls { padding: 25px; background: var(--card); border-radius: 30px 30px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); position: fixed; bottom: 0; width: 100%; }
+        .input-box { background: #111; border: 1px solid #333; border-radius: 15px; display: flex; align-items: center; padding: 5px 15px; margin-bottom: 15px; }
+        input { background: transparent; border: none; color: white; padding: 15px; font-size: 20px; font-weight: bold; width: 100%; outline: none; }
+        
+        .main-btn { width: 100%; padding: 20px; border-radius: 15px; border: none; font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; cursor: pointer; transition: 0.2s; text-transform: uppercase; }
+        .btn-bet { background: linear-gradient(135deg, var(--gold), var(--accent)); color: #000; box-shadow: 0 5px 20px rgba(255,138,0,0.4); }
+        .btn-cash { background: linear-gradient(135deg, #00FF85, #00A356); color: #000; box-shadow: 0 5px 20px rgba(0,255,133,0.4); }
+        .main-btn:active { transform: scale(0.96); }
+
+        .history { position: absolute; top: 85px; left: 0; width: 100%; display: flex; gap: 8px; padding: 10px; z-index: 5; pointer-events: none; opacity: 0.6; }
+        .hist-item { padding: 4px 10px; border-radius: 6px; background: #222; font-size: 12px; font-weight: bold; font-family: 'Orbitron'; }
     </style>
 </head>
 <body>
+
     <div class="header">
-        <span style="color: var(--gold); font-weight: bold;">STAY GOLD</span>
-        <span id="balance">Загрузка...</span>
+        <div>
+            <div class="balance-label">Твой инвентарь</div>
+            <div id="balance" class="balance-value">0 G</div>
+        </div>
+        <img src="https://avatars.mds.yandex.net/get-altay/1545638/2a0000016987f1396a5b671a5f4f466666/orig" width="40" style="border-radius: 50%; border: 1px solid var(--gold);">
     </div>
 
-    <div style="position: relative;">
+    <div class="history" id="history"></div>
+
+    <div class="game-container">
+        <div id="multiplier">1.00x</div>
         <canvas id="gameCanvas"></canvas>
-        <div id="mult">1.00x</div>
     </div>
 
     <div class="controls">
-        <input type="number" id="betInput" value="100">
-        <button id="actionBtn" class="main-btn btn-bet" onclick="handleAction()">СТАВКА</button>
+        <div class="input-box">
+            <span style="color: var(--gold); font-weight: bold;">G</span>
+            <input type="number" id="betInput" value="100">
+        </div>
+        <button id="actionBtn" class="main-btn btn-bet" onclick="handleAction()">СДЕЛАТЬ СТАВКУ</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
+        tg.expand();
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const multText = document.getElementById('mult');
+        const multText = document.getElementById('multiplier');
         
         let balance = 0;
         let isRunning = false;
-        let startTime = 0;
+        let serverStartTime = 0;
         let currentMult = 1.00;
         let animationId;
 
-        // Настройка канваса под экран
-        canvas.width = window.innerWidth;
-        canvas.height = 300;
+        // Корректный размер канваса
+        function resize() {
+            canvas.width = window.innerWidth * window.devicePixelRatio;
+            canvas.height = 350 * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        window.onresize = resize;
+        resize();
 
-        async function loadUser() {
+        async function init() {
             const user = tg.initDataUnsafe.user;
             const res = await fetch(`/api/get_user?user_id=${user.id}&name=${user.first_name}`);
             const data = await res.json();
             balance = data.balance;
-            document.getElementById('balance').innerText = balance + " G";
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('balance').innerText = balance.toLocaleString() + " G";
         }
 
         async function handleAction() {
-            const user = tg.initDataUnsafe.user;
+            const userId = tg.initDataUnsafe.user.id;
             const btn = document.getElementById('actionBtn');
 
             if (!isRunning) {
                 const bet = document.getElementById('betInput').value;
-                const res = await fetch(`/api/place_bet?user_id=${user.id}&bet=${bet}`, {method: 'POST'});
-                if (!res.ok) return alert("Ошибка!");
+                const res = await fetch(`/api/place_bet?user_id=${userId}&bet=${bet}`, {method: 'POST'});
+                if (!res.ok) { tg.HapticFeedback.notificationOccurred('error'); return; }
                 
                 const data = await res.json();
                 balance = data.new_balance;
-                document.getElementById('balance').innerText = balance + " G";
-
+                serverStartTime = data.server_time;
+                updateUI();
                 startAnimation();
                 btn.innerText = "ЗАБРАТЬ";
                 btn.className = "main-btn btn-cash";
             } else {
-                const res = await fetch(`/api/cashout?user_id=${user.id}&current_multiplier=${currentMult.toFixed(2)}`, {method: 'POST'});
+                const res = await fetch(`/api/cashout?user_id=${userId}`, {method: 'POST'});
                 const data = await res.json();
                 
                 stopAnimation();
                 if (data.status === "win") {
                     balance = data.new_balance;
                     tg.HapticFeedback.notificationOccurred('success');
-                    multText.style.color = "#00ff7f";
+                    multText.style.color = "#00FF85";
+                    addHistory(data.mult.toFixed(2), true);
                 } else {
                     crash(data.crash_point);
                 }
-                document.getElementById('balance').innerText = balance + " G";
-                btn.innerText = "СТАВКА";
+                updateUI();
+                btn.innerText = "СДЕЛАТЬ СТАВКУ";
                 btn.className = "main-btn btn-bet";
             }
         }
 
         function startAnimation() {
             isRunning = true;
-            startTime = Date.now();
-            currentMult = 1.00;
             multText.style.color = "white";
             animate();
         }
@@ -102,37 +136,58 @@
         function animate() {
             if (!isRunning) return;
 
-            const elapsed = (Date.now() - startTime) / 1000;
-            currentMult = Math.pow(1.15, elapsed * 2); // Плавный рост
+            const now = Date.now() / 1000;
+            const elapsed = now - serverStartTime;
+            
+            // Единая формула: 1.08 в степени времени
+            currentMult = Math.pow(1.08, elapsed * 2.5); 
             multText.innerText = currentMult.toFixed(2) + "x";
 
-            // Рисуем график
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.beginPath();
-            ctx.strokeStyle = '#ffb400';
-            ctx.lineWidth = 4;
-            ctx.moveTo(0, canvas.height);
+            draw(elapsed);
+            animationId = requestAnimationFrame(animate);
+        }
 
-            for (let x = 0; x < canvas.width; x++) {
-                let t = (x / canvas.width) * elapsed;
-                let y = canvas.height - (Math.pow(1.15, t * 2) * 20);
-                if (x / canvas.width > 1) break;
-                ctx.lineTo(x, y);
+        function draw(elapsed) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const w = canvas.width / window.devicePixelRatio;
+            const h = canvas.height / window.devicePixelRatio;
+            
+            // Настройки линии
+            ctx.beginPath();
+            ctx.strokeStyle = '#FFB400';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(255, 180, 0, 0.5)';
+
+            ctx.moveTo(0, h - 20);
+
+            // Отрисовка траектории
+            let lastX = 0;
+            let lastY = h - 20;
+
+            for (let i = 0; i <= elapsed; i += 0.05) {
+                let tx = (i / 10) * w; // Растягиваем по горизонтали
+                let ty = (h - 20) - (Math.pow(1.08, i * 2.5) * 15);
+                ctx.lineTo(tx, ty);
+                lastX = tx;
+                lastY = ty;
             }
+
+            // Плавная доводка до текущего момента
+            let curX = (elapsed / 10) * w;
+            let curY = (h - 20) - (currentMult * 15);
+            ctx.lineTo(curX, curY);
             ctx.stroke();
 
-            // Рисуем "ракету" (желтый круг)
-            let headX = Math.min(elapsed * 50, canvas.width - 20);
-            let headY = canvas.height - (currentMult * 20);
-            ctx.fillStyle = '#ffb400';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#ffb400';
+            // РАКЕТА (Точка свечения)
+            ctx.shadowBlur = 25;
+            ctx.fillStyle = "white";
             ctx.beginPath();
-            ctx.arc(headX, headY, 8, 0, Math.PI * 2);
+            ctx.arc(curX, curY, 6, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
-
-            animationId = requestAnimationFrame(animate);
         }
 
         function stopAnimation() {
@@ -143,11 +198,22 @@
         function crash(point) {
             stopAnimation();
             multText.innerText = point.toFixed(2) + "x";
-            multText.style.color = "#ff3e3e";
+            multText.style.color = "#FF3E3E";
             tg.HapticFeedback.notificationOccurred('error');
+            addHistory(point.toFixed(2), false);
         }
 
-        loadUser();
+        function addHistory(val, win) {
+            const h = document.getElementById('history');
+            const el = document.createElement('div');
+            el.className = 'hist-item';
+            el.style.color = win ? "#00FF85" : "#FF3E3E";
+            el.innerText = val + "x";
+            h.prepend(el);
+            if(h.children.length > 5) h.lastChild.remove();
+        }
+
+        init();
     </script>
 </body>
 </html>

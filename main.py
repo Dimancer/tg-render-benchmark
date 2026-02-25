@@ -1,6 +1,4 @@
-import os
-import random
-import sqlite3
+import os, time, random, sqlite3
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from aiogram import Bot, Dispatcher, types
@@ -9,13 +7,8 @@ from aiogram.filters import CommandStart
 
 # Инициализация БД
 def init_db():
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                      (id INTEGER PRIMARY KEY, name TEXT, balance INTEGER)''')
-    conn.commit()
-    conn.close()
-
+    with sqlite3.connect("database.db") as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, balance INTEGER)")
 init_db()
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -25,11 +18,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Активные игры (чтобы сервер помнил точку краша для каждого юзера)
 active_games = {}
-
-def get_db_conn():
-    return sqlite3.connect("database.db")
 
 @app.on_event("startup")
 async def on_startup():
@@ -43,72 +32,51 @@ async def webhook(request: Request):
 @dp.message(CommandStart())
 async def start(message: types.Message):
     markup = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="Запустить GOLD CRASH 🚀", web_app=WebAppInfo(url=f"{APP_URL}/"))]
+        [types.InlineKeyboardButton(text="ВХОД В GOLD CRASH 🏆", web_app=WebAppInfo(url=f"{APP_URL}/"))]
     ])
-    await message.answer("Погнали в Crash!", reply_markup=markup)
+    await message.answer(f"🏮 **Добро пожаловать, {message.from_user.first_name}!**\nГотов поднять Gold?", reply_markup=markup)
 
 @app.get("/api/get_user")
 async def get_user(user_id: int, name: str):
-    conn = get_db_conn()
-    cursor = conn.cursor()
-    cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
-    row = cursor.fetchone()
-    
-    if not row:
-        cursor.execute("INSERT INTO users (id, name, balance) VALUES (?, ?, ?)", (user_id, name, 1000))
-        conn.commit()
-        balance = 1000
-    else:
-        balance = row[0]
-    conn.close()
-    return {"balance": balance}
+    with sqlite3.connect("database.db") as conn:
+        cursor = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.execute("INSERT INTO users (id, name, balance) VALUES (?, ?, ?)", (user_id, name, 5000))
+            return {"balance": 5000}
+        return {"balance": row[0]}
 
 @app.post("/api/place_bet")
 async def place_bet(user_id: int, bet: int):
-    conn = get_db_conn()
-    cursor = conn.cursor()
-    cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
-    res = cursor.fetchone()
-    
-    if not res or res[0] < bet:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Low balance")
-
-    # Списываем сразу
-    new_balance = res[0] - bet
-    cursor.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
-    conn.commit()
-    conn.close()
-
-    # Генерируем секретную точку краша
-    crash_point = round(max(1.0, 0.99 / (1 - random.random())**0.7), 2)
-    if crash_point > 50: crash_point = 50 # Ограничим для теста
-    
-    active_games[user_id] = {"bet": bet, "crash_point": crash_point}
-    return {"status": "ok", "new_balance": new_balance}
+    with sqlite3.connect("database.db") as conn:
+        cursor = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
+        balance = cursor.fetchone()[0]
+        if balance < bet: raise HTTPException(status_code=400)
+        
+        new_balance = balance - bet
+        conn.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
+        
+    crash_point = round(max(1.0, 0.98 / (1 - random.random())**0.8), 2)
+    active_games[user_id] = {"start_time": time.time(), "crash_point": crash_point, "bet": bet}
+    return {"status": "ok", "new_balance": new_balance, "server_time": time.time()}
 
 @app.post("/api/cashout")
-async def cashout(user_id: int, current_multiplier: float):
+async def cashout(user_id: int):
     game = active_games.get(user_id)
-    if not game:
-        raise HTTPException(status_code=400, detail="No active game")
+    if not game: return {"status": "error"}
+    
+    elapsed = time.time() - game["start_time"]
+    current_mult = round(1.08 ** (elapsed * 2), 2)
     
     crash_point = game["crash_point"]
-    bet = game["bet"]
     del active_games[user_id]
 
-    if current_multiplier <= crash_point:
-        win_amount = int(bet * current_multiplier)
-        conn = get_db_conn()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (win_amount, user_id))
-        cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
-        new_balance = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        return {"status": "win", "win": win_amount, "new_balance": new_balance, "crash_point": crash_point}
-    else:
-        # Юзер пытался обмануть или нажал слишком поздно
-        return {"status": "lose", "crash_point": crash_point}
+    if current_mult <= crash_point:
+        win = int(game["bet"] * current_mult)
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (win, user_id))
+            res = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,)).fetchone()[0]
+        return {"status": "win", "win": win, "new_balance": res, "mult": current_mult}
+    return {"status": "lose", "crash_point": crash_point}
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
