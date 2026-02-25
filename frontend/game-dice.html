@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino — Кости</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { padding-top: 60px; }
+
+    .dice-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 32px 0;
+    }
+    .die {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, var(--gold-deep) 0%, var(--gold-darker) 100%);
+      border: 2px solid var(--gold-dark);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.4rem;
+      box-shadow: var(--glow-gold);
+      transition: transform .15s;
+    }
+    .die.rolling { animation: diceRoll .8s ease; }
+    @keyframes diceRoll {
+      0%  { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(90deg) scale(1.1); }
+      50% { transform: rotate(180deg) scale(0.9); }
+      75% { transform: rotate(270deg) scale(1.1); }
+      100%{ transform: rotate(360deg) scale(1); }
+    }
+
+    .dice-faces { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 8px 0 20px; }
+    .face-btn {
+      width: 44px; height: 44px;
+      border-radius: var(--radius-sm);
+      background: rgba(165,118,36,0.08);
+      border: 1.5px solid rgba(165,118,36,0.2);
+      color: var(--text-primary);
+      font-size: 1.3rem;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .face-btn:hover { background: rgba(165,118,36,0.18); border-color: rgba(165,118,36,0.5); }
+    .face-btn.selected { background: rgba(165,118,36,0.25); border-color: var(--gold-primary); box-shadow: var(--glow-gold); }
+
+    .dice-odds {
+      text-align: center;
+      font-family: var(--font-head);
+      font-size: .72rem;
+      color: var(--text-muted);
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+    .dice-odds span { color: var(--gold-primary); font-size: .9rem; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <span>🎯</span>
+      <div class="logo-text">SO2 CASINO<span class="so2-tag">STANDOFF 2</span></div>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="lobby.html">🎮 Игры</a></li>
+    </ul>
+    <div class="navbar-right">
+      <div class="wallet-chip"><span class="w-icon">🥇</span><span class="w-amount" id="nav-balance">—</span></div>
+      <div class="avatar">👤</div>
+    </div>
+  </nav>
+
+  <main class="game-wrap">
+    <button class="back-btn" onclick="window.location.href='lobby.html'">← Назад в лобби</button>
+
+    <div class="game-panel">
+      <div class="section-title">🎯 Кости</div>
+
+      <div class="dice-display">
+        <div class="die" id="die1">🎲</div>
+        <div style="font-family:var(--font-head);font-size:1.4rem;color:var(--text-muted)">+</div>
+        <div class="die" id="die2">🎲</div>
+      </div>
+
+      <div style="font-family:var(--font-head);font-size:.7rem;letter-spacing:.12em;color:var(--text-muted);text-align:center;margin-bottom:12px;text-transform:uppercase">
+        Выбери число (сумма двух костей)
+      </div>
+
+      <div class="dice-faces" id="dice-faces">
+        <!-- 2-12 -->
+      </div>
+
+      <div class="dice-odds">
+        Выбрано: <span id="chosen-num">—</span> &nbsp;·&nbsp; Множитель: <span id="chosen-mult">—</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="bet-row">
+        <div class="bet-input-wrap input-group" style="margin-bottom:0">
+          <label>Ставка (Gold)</label>
+          <input class="input-field" type="number" id="bet-input" placeholder="100" min="10"/>
+        </div>
+        <button class="btn btn-gold" id="play-btn" onclick="playDice()" style="padding:11px 28px;font-size:.85rem">🎲 Бросить</button>
+      </div>
+      <div class="amount-presets" style="margin-top:10px">
+        <button class="preset-btn" onclick="setBet(50)">50</button>
+        <button class="preset-btn" onclick="setBet(100)">100</button>
+        <button class="preset-btn" onclick="setBet(250)">250</button>
+        <button class="preset-btn" onclick="doubleBet()">×2</button>
+        <button class="preset-btn" onclick="halfBet()">½</button>
+      </div>
+
+      <div class="result-box result-wait" id="result-box" style="margin-top:24px">
+        Выбери число и сделай ставку
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API  = window.SO2_API || 'https://your-backend.com/api';
+    const tg   = window.Telegram?.WebApp;
+    if (tg) tg.ready();
+    const userId = tg?.initDataUnsafe?.user?.id || localStorage.getItem('so2_uid') || 'guest';
+
+    function getHeaders() {
+      const h = { 'Content-Type': 'application/json', 'X-User-Id': String(userId) };
+      if (tg?.initData) h['X-Tg-Init-Data'] = tg.initData;
+      return h;
+    }
+
+    async function loadBalance() {
+      try {
+        const r = await fetch(API + '/user/balance', { headers: getHeaders() });
+        const d = await r.json();
+        document.getElementById('nav-balance').textContent = d.gold.toLocaleString() + ' 🥇';
+      } catch {}
+    }
+    loadBalance();
+
+    // Multipliers per number (fair odds based on combinations)
+    const DICE_ODDS = {
+      2: 36, 3: 18, 4: 12, 5: 9, 6: 7.2,
+      7: 6,  8: 7.2, 9: 9, 10: 12, 11: 18, 12: 36
+    };
+    const DICE_EMOJI = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+
+    let chosenNum = null;
+    let isPlaying = false;
+
+    // Build face buttons
+    const facesEl = document.getElementById('dice-faces');
+    for (let i = 2; i <= 12; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'face-btn';
+      btn.id = 'face-' + i;
+      btn.textContent = i;
+      btn.onclick = () => pickNum(i);
+      facesEl.appendChild(btn);
+    }
+
+    function pickNum(n) {
+      chosenNum = n;
+      document.querySelectorAll('.face-btn').forEach(b => b.classList.remove('selected'));
+      document.getElementById('face-' + n).classList.add('selected');
+      document.getElementById('chosen-num').textContent = n;
+      document.getElementById('chosen-mult').textContent = 'x' + DICE_ODDS[n].toFixed(1);
+    }
+    pickNum(7);
+
+    function setBet(v) { document.getElementById('bet-input').value = v; }
+    function doubleBet() { document.getElementById('bet-input').value = (parseInt(document.getElementById('bet-input').value)||0)*2; }
+    function halfBet()  { document.getElementById('bet-input').value = Math.max(10, Math.floor((parseInt(document.getElementById('bet-input').value)||0)/2)); }
+
+    async function playDice() {
+      if (isPlaying || !chosenNum) { if(!chosenNum) showToast('⚠️ Выбери число'); return; }
+      const bet = parseInt(document.getElementById('bet-input').value) || 0;
+      if (bet < 10) { showToast('⚠️ Минимум 10 🥇'); return; }
+
+      isPlaying = true;
+      const btn = document.getElementById('play-btn');
+      btn.disabled = true;
+
+      const die1 = document.getElementById('die1');
+      const die2 = document.getElementById('die2');
+      die1.classList.add('rolling');
+      die2.classList.add('rolling');
+
+      const resultBox = document.getElementById('result-box');
+      resultBox.className = 'result-box result-wait';
+      resultBox.textContent = '🎲 Бросаем...';
+
+      try {
+        const r = await fetch(API + '/games/dice/play', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ bet, chosen: chosenNum })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+
+        await new Promise(res => setTimeout(res, 900));
+        die1.classList.remove('rolling');
+        die2.classList.remove('rolling');
+
+        // d.die1, d.die2, d.sum, d.won, d.payout from backend
+        die1.textContent = DICE_EMOJI[(d.die1||1) - 1];
+        die2.textContent = DICE_EMOJI[(d.die2||1) - 1];
+
+        if (d.won) {
+          resultBox.className = 'result-box result-win';
+          resultBox.textContent = `${d.die1}+${d.die2}=${d.sum} · +${(d.payout||0).toLocaleString()} 🥇 ПОБЕДА!`;
+        } else {
+          resultBox.className = 'result-box result-lose';
+          resultBox.textContent = `${d.die1}+${d.die2}=${d.sum} · -${bet.toLocaleString()} 🥇 Не угадал`;
+        }
+        loadBalance();
+        setTimeout(() => { die1.textContent='🎲'; die2.textContent='🎲'; }, 3500);
+      } catch (e) {
+        die1.classList.remove('rolling');
+        die2.classList.remove('rolling');
+        resultBox.className = 'result-box result-lose';
+        resultBox.textContent = '❌ Ошибка: ' + e.message;
+      }
+
+      btn.disabled = false;
+      isPlaying = false;
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 2700);
+    }
+  </script>
+</body>
+</html>

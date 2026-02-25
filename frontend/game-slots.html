@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino — Слоты</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { padding-top: 60px; }
+
+    /* ── MACHINE ── */
+    .slots-machine {
+      background: linear-gradient(135deg, #0d0e11 0%, #1a1400 100%);
+      border: 2px solid var(--gold-dark);
+      border-radius: 20px;
+      padding: 28px 24px 24px;
+      position: relative;
+      box-shadow: var(--glow-gold), inset 0 0 40px rgba(0,0,0,0.5);
+      margin-bottom: 20px;
+    }
+    .slots-machine::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--gold-dark), var(--gold-primary), var(--gold-dark), transparent);
+    }
+    .machine-title {
+      font-family: var(--font-head);
+      font-size: .65rem;
+      letter-spacing: .22em;
+      color: var(--gold-dark);
+      text-align: center;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    /* Reels container */
+    .reels-wrap {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid rgba(165,118,36,0.3);
+      border-radius: 14px;
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Win line */
+    .win-line {
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 2px;
+      background: rgba(255,202,145,0.25);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+    .win-line.active {
+      background: var(--gold-primary);
+      box-shadow: 0 0 12px rgba(255,202,145,0.8);
+    }
+
+    /* Single reel */
+    .reel {
+      width: 72px;
+      height: 72px;
+      overflow: hidden;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(165,118,36,0.2);
+      position: relative;
+    }
+    .reel-inner {
+      display: flex;
+      flex-direction: column;
+      transition: transform 0s;
+    }
+    .reel-inner.spinning {
+      animation: reelSpin var(--dur, 0.8s) cubic-bezier(.4,0,.2,1);
+    }
+    @keyframes reelSpin {
+      0%   { transform: translateY(0); }
+      100% { transform: translateY(calc(-72px * 20)); }
+    }
+    .reel-symbol {
+      width: 72px; height: 72px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem;
+      flex-shrink: 0;
+    }
+    .reel-symbol.highlight {
+      background: rgba(255,202,145,0.12);
+      border-radius: 8px;
+    }
+
+    /* Paytable */
+    .paytable {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(165,118,36,0.15);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+    .paytable-title {
+      font-family: var(--font-head);
+      font-size: .65rem;
+      letter-spacing: .14em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .pt-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-size: .82rem;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .pt-row:last-child { border-bottom: none; }
+    .pt-symbols { font-size: 1rem; letter-spacing: 2px; }
+    .pt-mult { font-family: var(--font-head); font-size: .78rem; color: var(--gold-primary); }
+
+    /* Credits display */
+    .credits-display {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin: 16px 0;
+    }
+    .cred-item { text-align: center; }
+    .cred-val {
+      font-family: var(--font-head);
+      font-size: 1.2rem;
+      font-weight: 900;
+      color: var(--gold-primary);
+    }
+    .cred-lbl {
+      font-size: .62rem;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Spin button big */
+    .btn-spin-big {
+      width: 100%;
+      padding: 18px;
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      border: none;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #a57624, #6f4a13);
+      color: var(--gold-primary);
+      box-shadow: var(--glow-gold);
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-spin-big:hover { background: linear-gradient(135deg,#c99030,#8a5c1a); transform: translateY(-2px); }
+    .btn-spin-big:active { transform: translateY(0); }
+    .btn-spin-big:disabled { opacity: .5; pointer-events: none; }
+
+    /* Win overlay */
+    .win-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      border-radius: 18px;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      animation: fadeIn .3s ease;
+    }
+    .win-overlay.show { display: flex; }
+    .win-text {
+      font-family: var(--font-head);
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--gold-primary);
+      text-shadow: var(--glow-gold);
+      animation: winPop .4s cubic-bezier(.34,1.56,.64,1);
+      text-align: center;
+    }
+    @keyframes winPop {
+      from { transform: scale(0.5); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <span>🎯</span>
+      <div class="logo-text">SO2 CASINO<span class="so2-tag">STANDOFF 2</span></div>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="lobby.html">🎮 Игры</a></li>
+    </ul>
+    <div class="navbar-right">
+      <div class="wallet-chip"><span class="w-icon">🥇</span><span class="w-amount" id="nav-balance">—</span></div>
+      <div class="avatar">👤</div>
+    </div>
+  </nav>
+
+  <main class="game-wrap">
+    <button class="back-btn" onclick="window.location.href='lobby.html'">← Назад в лобби</button>
+
+    <div class="game-panel">
+      <div class="section-title">🎲 Слоты</div>
+
+      <!-- Slot machine -->
+      <div class="slots-machine">
+        <div class="machine-title">⚡ SO2 SLOTS ⚡</div>
+
+        <div class="reels-wrap" id="reels-wrap">
+          <div class="win-line" id="win-line"></div>
+          <div class="reel" id="reel-0"><div class="reel-inner" id="reel-inner-0"></div></div>
+          <div class="reel" id="reel-1"><div class="reel-inner" id="reel-inner-1"></div></div>
+          <div class="reel" id="reel-2"><div class="reel-inner" id="reel-inner-2"></div></div>
+          <div class="reel" id="reel-3"><div class="reel-inner" id="reel-inner-3"></div></div>
+          <div class="reel" id="reel-4"><div class="reel-inner" id="reel-inner-4"></div></div>
+        </div>
+
+        <!-- Win overlay -->
+        <div class="win-overlay" id="win-overlay">
+          <div class="win-text" id="win-text">🥇 WIN!</div>
+        </div>
+
+        <!-- Credits -->
+        <div class="credits-display">
+          <div class="cred-item">
+            <div class="cred-val" id="last-win-display">—</div>
+            <div class="cred-lbl">Выигрыш</div>
+          </div>
+          <div class="cred-item">
+            <div class="cred-val" id="bet-display">100</div>
+            <div class="cred-lbl">Ставка 🥇</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paytable -->
+      <div class="paytable">
+        <div class="paytable-title">💡 Выплаты (x ставки)</div>
+        <div class="pt-row"><span class="pt-symbols">🎯🎯🎯🎯🎯</span><span class="pt-mult">×500</span></div>
+        <div class="pt-row"><span class="pt-symbols">⭐⭐⭐⭐⭐</span><span class="pt-mult">×200</span></div>
+        <div class="pt-row"><span class="pt-symbols">💎💎💎💎💎</span><span class="pt-mult">×100</span></div>
+        <div class="pt-row"><span class="pt-symbols">🔫🔫🔫🔫🔫</span><span class="pt-mult">×50</span></div>
+        <div class="pt-row"><span class="pt-symbols">💣💣💣💣💣</span><span class="pt-mult">×25</span></div>
+        <div class="pt-row"><span class="pt-symbols">Любые 3 одинак.</span><span class="pt-mult">×5</span></div>
+        <div class="pt-row"><span class="pt-symbols">Любые 4 одинак.</span><span class="pt-mult">×15</span></div>
+      </div>
+
+      <!-- Bet selector -->
+      <div style="font-family:var(--font-head);font-size:.65rem;letter-spacing:.12em;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">Ставка</div>
+      <div class="amount-presets" style="margin-bottom:16px">
+        <button class="preset-btn active" onclick="setBet(this,50)">50</button>
+        <button class="preset-btn" onclick="setBet(this,100)">100</button>
+        <button class="preset-btn" onclick="setBet(this,250)">250</button>
+        <button class="preset-btn" onclick="setBet(this,500)">500</button>
+        <button class="preset-btn" onclick="setBet(this,1000)">1000</button>
+      </div>
+
+      <button class="btn-spin-big" id="spin-btn" onclick="spinSlots()">
+        🎲 КРУТИТЬ
+      </button>
+
+      <div class="result-box result-wait" id="result-box" style="margin-top:16px;font-size:.95rem">
+        Выбери ставку и жми крутить
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API    = window.SO2_API || 'https://your-backend.com/api';
+    const tg     = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+    const userId = tg?.initDataUnsafe?.user?.id || localStorage.getItem('so2_uid') || 'guest';
+
+    function getHeaders() {
+      const h = { 'Content-Type': 'application/json', 'X-User-Id': String(userId) };
+      if (tg?.initData) h['X-Tg-Init-Data'] = tg.initData;
+      return h;
+    }
+
+    async function loadBalance() {
+      try {
+        const r = await fetch(API + '/user/balance', { headers: getHeaders() });
+        const d = await r.json();
+        document.getElementById('nav-balance').textContent = d.gold.toLocaleString() + ' 🥇';
+      } catch { document.getElementById('nav-balance').textContent = '— 🥇'; }
+    }
+    loadBalance();
+
+    // ── Symbols ──
+    const SYMBOLS = ['🎯','⭐','💎','🔫','💣','🪙','🔪','💀'];
+
+    // ── Build reels with placeholder symbols ──
+    for (let r = 0; r < 5; r++) {
+      const inner = document.getElementById('reel-inner-' + r);
+      // 3 visible rows, fill with random for display
+      for (let i = 0; i < 3; i++) {
+        const sym = document.createElement('div');
+        sym.className = 'reel-symbol';
+        sym.textContent = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+        inner.appendChild(sym);
+      }
+    }
+
+    // ── Bet ──
+    let currentBet = 50;
+    function setBet(el, val) {
+      document.querySelectorAll('.amount-presets .preset-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      currentBet = val;
+      document.getElementById('bet-display').textContent = val.toLocaleString();
+    }
+
+    // ── Spin ──
+    let isSpinning = false;
+
+    async function spinSlots() {
+      if (isSpinning) return;
+      isSpinning = true;
+
+      const btn = document.getElementById('spin-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Крутим...';
+
+      const resultBox = document.getElementById('result-box');
+      resultBox.className = 'result-box result-wait';
+      resultBox.textContent = '🎲 Крутим барабаны...';
+
+      document.getElementById('win-line').classList.remove('active');
+      document.getElementById('win-overlay').classList.remove('show');
+      document.getElementById('last-win-display').textContent = '—';
+
+      // Animate all reels spinning visually
+      for (let r = 0; r < 5; r++) {
+        const inner = document.getElementById('reel-inner-' + r);
+        inner.style.setProperty('--dur', (0.7 + r * 0.15) + 's');
+        inner.classList.add('spinning');
+      }
+
+      try {
+        const resp = await fetch(API + '/games/slots/play', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ bet: currentBet })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        const d = await resp.json();
+
+        // d.reels  — array of 5 symbols e.g. ['🎯','💎','🎯','🎯','⭐']
+        // d.won    — bool
+        // d.payout — gold amount
+        // d.combo  — description e.g. '3x🎯'
+
+        // Wait for longest reel animation
+        await new Promise(res => setTimeout(res, 700 + 4 * 150 + 300));
+
+        // Stop animations & show result symbols
+        for (let r = 0; r < 5; r++) {
+          const inner = document.getElementById('reel-inner-' + r);
+          inner.classList.remove('spinning');
+          inner.innerHTML = '';
+          const sym = document.createElement('div');
+          sym.className = 'reel-symbol' + (d.won ? ' highlight' : '');
+          sym.textContent = d.reels?.[r] || SYMBOLS[0];
+          inner.appendChild(sym);
+        }
+
+        if (d.won) {
+          document.getElementById('win-line').classList.add('active');
+          document.getElementById('win-overlay').classList.add('show');
+          document.getElementById('win-text').textContent = '+' + (d.payout||0).toLocaleString() + ' 🥇';
+          document.getElementById('last-win-display').textContent = '+' + (d.payout||0).toLocaleString();
+          resultBox.className = 'result-box result-win';
+          resultBox.textContent = (d.combo || '') + ' · +' + (d.payout||0).toLocaleString() + ' 🥇 ПОБЕДА!';
+          setTimeout(() => document.getElementById('win-overlay').classList.remove('show'), 2500);
+        } else {
+          document.getElementById('last-win-display').textContent = '0';
+          resultBox.className = 'result-box result-lose';
+          resultBox.textContent = '-' + currentBet.toLocaleString() + ' 🥇 · Не повезло';
+        }
+
+        loadBalance();
+
+      } catch (e) {
+        for (let r = 0; r < 5; r++)
+          document.getElementById('reel-inner-' + r).classList.remove('spinning');
+        resultBox.className = 'result-box result-lose';
+        resultBox.textContent = '❌ Ошибка: ' + e.message;
+      }
+
+      btn.disabled = false;
+      btn.textContent = '🎲 КРУТИТЬ';
+      isSpinning = false;
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 2700);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino — Мины</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { padding-top: 60px; }
+
+    /* ── GRID ── */
+    .mines-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin: 20px 0;
+    }
+    .mine-cell {
+      aspect-ratio: 1;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, rgba(165,118,36,0.12), rgba(165,118,36,0.06));
+      border: 1.5px solid rgba(165,118,36,0.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+    .mine-cell::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent);
+    }
+    .mine-cell:hover:not(.revealed):not(.disabled) {
+      border-color: rgba(165,118,36,0.7);
+      background: linear-gradient(135deg, rgba(165,118,36,0.22), rgba(165,118,36,0.1));
+      transform: scale(1.04);
+      box-shadow: var(--glow-gold);
+    }
+    .mine-cell.safe {
+      background: linear-gradient(135deg, rgba(76,255,143,0.15), rgba(76,255,143,0.06));
+      border-color: rgba(76,255,143,0.4);
+      animation: revealSafe .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .mine-cell.bomb {
+      background: linear-gradient(135deg, rgba(255,68,68,0.25), rgba(175,26,31,0.15));
+      border-color: rgba(255,68,68,0.5);
+      animation: revealBomb .3s ease;
+    }
+    .mine-cell.disabled { cursor: default; }
+    @keyframes revealSafe {
+      from { transform: scale(0.7) rotateY(90deg); opacity: 0; }
+      to   { transform: scale(1)   rotateY(0deg);  opacity: 1; }
+    }
+    @keyframes revealBomb {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.2); }
+      60%  { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+
+    /* ── MULTIPLIER bar ── */
+    .mult-display {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(165,118,36,0.2);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      margin-bottom: 16px;
+    }
+    .mult-left { font-size: .72rem; color: var(--text-muted); font-family: var(--font-head); letter-spacing: .08em; }
+    .mult-val {
+      font-family: var(--font-head);
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--gold-primary);
+      text-shadow: var(--glow-gold);
+      transition: all .3s;
+    }
+    .mult-profit {
+      font-family: var(--font-head);
+      font-size: .88rem;
+      color: #4cff8f;
+      text-align: right;
+    }
+    .mult-profit small { color: var(--text-muted); font-size: .65rem; }
+
+    /* ── Mine count selector ── */
+    .mine-count-wrap {
+      margin-bottom: 16px;
+    }
+    .mine-count-btns {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .mc-btn {
+      flex: 1; min-width: 44px;
+      padding: 9px 6px;
+      border-radius: var(--radius-sm);
+      background: rgba(175,26,31,0.1);
+      border: 1.5px solid rgba(175,26,31,0.25);
+      color: #ffb3b3;
+      font-family: var(--font-head);
+      font-size: .72rem;
+      cursor: pointer;
+      transition: var(--transition);
+      text-align: center;
+    }
+    .mc-btn:hover { background: rgba(175,26,31,0.2); border-color: rgba(175,26,31,0.5); }
+    .mc-btn.active { background: rgba(175,26,31,0.28); border-color: #af1a1f; box-shadow: var(--glow-red); }
+
+    .progress-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: .72rem;
+      color: var(--text-muted);
+      font-family: var(--font-head);
+      letter-spacing: .06em;
+    }
+    .progress-gems {
+      display: flex; gap: 3px; flex-wrap: wrap;
+    }
+    .prog-gem {
+      width: 10px; height: 10px;
+      border-radius: 2px;
+      background: rgba(76,255,143,0.3);
+      border: 1px solid rgba(76,255,143,0.5);
+    }
+    .prog-gem.found { background: #4cff8f; box-shadow: 0 0 4px #4cff8f; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <span>🎯</span>
+      <div class="logo-text">SO2 CASINO<span class="so2-tag">STANDOFF 2</span></div>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="lobby.html">🎮 Игры</a></li>
+    </ul>
+    <div class="navbar-right">
+      <div class="wallet-chip"><span class="w-icon">🥇</span><span class="w-amount" id="nav-balance">—</span></div>
+      <div class="avatar">👤</div>
+    </div>
+  </nav>
+
+  <main class="game-wrap">
+    <button class="back-btn" onclick="window.location.href='lobby.html'">← Назад в лобби</button>
+
+    <div class="game-panel">
+      <div class="section-title">💣 Мины</div>
+
+      <!-- Multiplier display -->
+      <div class="mult-display">
+        <div>
+          <div class="mult-left">МНОЖИТЕЛЬ</div>
+          <div class="mult-val" id="mult-val">1.00×</div>
+        </div>
+        <div>
+          <div class="mult-profit" id="mult-profit">
+            <small>Возможный выигрыш</small><br/>
+            <span id="potential-win">—</span> 🥇
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-row">
+        <span>Открыто:</span>
+        <div class="progress-gems" id="progress-gems"></div>
+        <span id="progress-text">0 / 0</span>
+      </div>
+
+      <!-- Grid -->
+      <div class="mines-grid" id="mines-grid"></div>
+
+      <div class="divider"></div>
+
+      <!-- Setup (shown before game starts) -->
+      <div id="setup-panel">
+        <div class="mine-count-wrap">
+          <div style="font-family:var(--font-head);font-size:.65rem;letter-spacing:.12em;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">Количество мин</div>
+          <div class="mine-count-btns">
+            <div class="mc-btn" onclick="setMines(this,1)">1 💣</div>
+            <div class="mc-btn active" onclick="setMines(this,3)">3 💣</div>
+            <div class="mc-btn" onclick="setMines(this,5)">5 💣</div>
+            <div class="mc-btn" onclick="setMines(this,10)">10 💣</div>
+            <div class="mc-btn" onclick="setMines(this,15)">15 💣</div>
+            <div class="mc-btn" onclick="setMines(this,20)">20 💣</div>
+          </div>
+        </div>
+
+        <div class="bet-row" style="margin-top:12px">
+          <div class="bet-input-wrap input-group" style="margin-bottom:0">
+            <label>Ставка (Gold)</label>
+            <input class="input-field" type="number" id="bet-input" placeholder="100" min="10"/>
+          </div>
+          <button class="btn btn-gold" onclick="startMines()" style="padding:11px 24px;font-size:.85rem">💣 Начать</button>
+        </div>
+        <div class="amount-presets" style="margin-top:8px">
+          <button class="preset-btn" onclick="setBet(50)">50</button>
+          <button class="preset-btn" onclick="setBet(100)">100</button>
+          <button class="preset-btn" onclick="setBet(250)">250</button>
+          <button class="preset-btn" onclick="setBet(500)">500</button>
+          <button class="preset-btn" onclick="doubleBet()">×2</button>
+        </div>
+      </div>
+
+      <!-- In-game panel (shown during game) -->
+      <div id="game-panel-controls" style="display:none">
+        <button class="btn btn-gold" style="width:100%;padding:15px;font-size:.9rem" onclick="cashoutMines()">
+          💰 Забрать <span id="cashout-amount">—</span> 🥇
+        </button>
+        <div style="text-align:center;margin-top:10px;font-size:.72rem;color:var(--text-muted);font-family:var(--font-head);letter-spacing:.06em">
+          Или продолжай открывать для большего множителя
+        </div>
+      </div>
+
+      <div class="result-box result-wait" id="result-box" style="margin-top:16px;font-size:.9rem">
+        Выбери кол-во мин, ставку и начинай
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API    = window.SO2_API || 'https://your-backend.com/api';
+    const tg     = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+    const userId = tg?.initDataUnsafe?.user?.id || localStorage.getItem('so2_uid') || 'guest';
+
+    function getHeaders() {
+      const h = { 'Content-Type': 'application/json', 'X-User-Id': String(userId) };
+      if (tg?.initData) h['X-Tg-Init-Data'] = tg.initData;
+      return h;
+    }
+
+    async function loadBalance() {
+      try {
+        const r = await fetch(API + '/user/balance', { headers: getHeaders() });
+        const d = await r.json();
+        document.getElementById('nav-balance').textContent = d.gold.toLocaleString() + ' 🥇';
+      } catch { document.getElementById('nav-balance').textContent = '— 🥇'; }
+    }
+    loadBalance();
+
+    // ── State ──
+    let mineCount   = 3;
+    let currentBet  = 0;
+    let gameActive  = false;
+    let gameId      = null;
+    let openedCells = 0;
+    let currentMult = 1.00;
+
+    const TOTAL_CELLS = 25;
+
+    // ── Build grid ──
+    const grid = document.getElementById('mines-grid');
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'mine-cell disabled';
+      cell.id = 'cell-' + i;
+      cell.textContent = '?';
+      cell.onclick = () => revealCell(i);
+      grid.appendChild(cell);
+    }
+
+    function resetGrid() {
+      for (let i = 0; i < TOTAL_CELLS; i++) {
+        const c = document.getElementById('cell-' + i);
+        c.className = 'mine-cell disabled';
+        c.textContent = '?';
+      }
+    }
+
+    function setMines(el, count) {
+      document.querySelectorAll('.mc-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      mineCount = count;
+    }
+
+    function setBet(v) { document.getElementById('bet-input').value = v; }
+    function doubleBet() { document.getElementById('bet-input').value = (parseInt(document.getElementById('bet-input').value)||0)*2; }
+
+    function updateProgressGems(found) {
+      const safe = TOTAL_CELLS - mineCount;
+      const gems = document.getElementById('progress-gems');
+      gems.innerHTML = Array.from({length: Math.min(safe, 20)}, (_, i) =>
+        `<div class="prog-gem ${i < found ? 'found' : ''}"></div>`
+      ).join('');
+      document.getElementById('progress-text').textContent = found + ' / ' + safe;
+    }
+
+    function updateMult(mult, bet) {
+      currentMult = mult;
+      document.getElementById('mult-val').textContent = mult.toFixed(2) + '×';
+      const potential = Math.floor(bet * mult);
+      document.getElementById('potential-win').textContent = potential.toLocaleString();
+      document.getElementById('cashout-amount').textContent = potential.toLocaleString();
+    }
+
+    // ── Start game ──
+    async function startMines() {
+      const bet = parseInt(document.getElementById('bet-input').value) || 0;
+      if (bet < 10) { showToast('⚠️ Минимум 10 🥇'); return; }
+      currentBet  = bet;
+      openedCells = 0;
+
+      try {
+        const r = await fetch(API + '/games/mines/start', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ bet, mines: mineCount })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+
+        // d.game_id — session id for this round
+        gameId      = d.game_id;
+        gameActive  = true;
+
+        resetGrid();
+        // Enable all cells
+        for (let i = 0; i < TOTAL_CELLS; i++)
+          document.getElementById('cell-' + i).classList.remove('disabled');
+
+        updateMult(1.00, bet);
+        updateProgressGems(0);
+
+        document.getElementById('setup-panel').style.display         = 'none';
+        document.getElementById('game-panel-controls').style.display = 'block';
+
+        const rb = document.getElementById('result-box');
+        rb.className = 'result-box result-wait';
+        rb.textContent = '💣 Открывай клетки. Избегай мины!';
+
+        loadBalance();
+        showToast('💣 Игра началась! Мин: ' + mineCount);
+      } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    // ── Reveal cell ──
+    async function revealCell(index) {
+      if (!gameActive) return;
+      const cell = document.getElementById('cell-' + index);
+      if (cell.classList.contains('revealed') || cell.classList.contains('disabled')) return;
+
+      // Disable during request
+      cell.classList.add('disabled');
+
+      try {
+        const r = await fetch(API + '/games/mines/reveal', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ game_id: gameId, cell: index })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+
+        // d.safe       — bool
+        // d.symbol     — emoji to show ('💎' or '💣')
+        // d.multiplier — current multiplier if safe
+        // d.payout     — if bomb, shows what was lost
+        // d.game_over  — bool (hit a mine)
+        // d.board      — full board revealed if game_over
+
+        if (d.safe) {
+          cell.classList.remove('disabled');
+          cell.classList.add('revealed', 'safe');
+          cell.textContent = d.symbol || '💎';
+          openedCells++;
+          updateMult(d.multiplier || currentMult, currentBet);
+          updateProgressGems(openedCells);
+
+          const rb = document.getElementById('result-box');
+          rb.className = 'result-box result-wait';
+          rb.textContent = `✅ Открыто ${openedCells} · Множитель ${(d.multiplier||1).toFixed(2)}×`;
+
+          // All safe cells found — auto win
+          if (openedCells >= TOTAL_CELLS - mineCount) {
+            await cashoutMines();
+          }
+        } else {
+          // Hit a mine
+          cell.classList.remove('disabled');
+          cell.classList.add('revealed', 'bomb');
+          cell.textContent = '💣';
+          gameActive = false;
+
+          // Reveal full board
+          if (d.board) {
+            d.board.forEach((type, i) => {
+              const c = document.getElementById('cell-' + i);
+              if (!c.classList.contains('revealed')) {
+                c.classList.add('revealed', type === 'mine' ? 'bomb' : 'safe', 'disabled');
+                c.textContent = type === 'mine' ? '💣' : '💎';
+              }
+            });
+          }
+
+          document.getElementById('game-panel-controls').style.display = 'none';
+          document.getElementById('setup-panel').style.display         = 'block';
+
+          const rb = document.getElementById('result-box');
+          rb.className = 'result-box result-lose';
+          rb.textContent = `💥 Мина! -${currentBet.toLocaleString()} 🥇`;
+
+          loadBalance();
+          updateMult(1.00, 0);
+          showToast('💥 Взрыв! Ставка сгорела');
+        }
+      } catch (e) {
+        cell.classList.remove('disabled');
+        showToast('❌ ' + e.message);
+      }
+    }
+
+    // ── Cashout ──
+    async function cashoutMines() {
+      if (!gameActive || !gameId) return;
+      gameActive = false;
+
+      try {
+        const r = await fetch(API + '/games/mines/cashout', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ game_id: gameId })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+
+        // Disable all cells
+        for (let i = 0; i < TOTAL_CELLS; i++)
+          document.getElementById('cell-' + i).classList.add('disabled');
+
+        document.getElementById('game-panel-controls').style.display = 'none';
+        document.getElementById('setup-panel').style.display         = 'block';
+
+        const rb = document.getElementById('result-box');
+        rb.className = 'result-box result-win';
+        rb.textContent = `💰 +${(d.payout||0).toLocaleString()} 🥇 · x${(d.multiplier||currentMult).toFixed(2)} ПОБЕДА!`;
+
+        updateMult(1.00, 0);
+        loadBalance();
+        showToast('💰 +' + (d.payout||0).toLocaleString() + ' 🥇');
+
+        // Reveal remaining board
+        if (d.board) {
+          d.board.forEach((type, i) => {
+            const c = document.getElementById('cell-' + i);
+            if (!c.classList.contains('revealed')) {
+              c.classList.add('revealed', type === 'mine' ? 'bomb' : 'safe', 'disabled');
+              c.textContent = type === 'mine' ? '💣' : '💎';
+            }
+          });
+        }
+      } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 2700);
+    }
+  </script>
+</body>
+</html>

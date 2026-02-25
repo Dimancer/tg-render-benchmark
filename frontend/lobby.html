@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino — Лобби</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { padding-top: 60px; }
+
+    .lobby-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-banner {
+      position: relative;
+      background: linear-gradient(135deg, rgba(165,118,36,0.12) 0%, rgba(111,74,19,0.08) 100%);
+      border: 1px solid rgba(165,118,36,0.28);
+      border-radius: var(--radius-lg);
+      padding: 36px 40px;
+      margin-bottom: 40px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .hero-banner::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--gold-dark), var(--gold-primary), var(--gold-dark), transparent);
+    }
+    .hero-banner-bg {
+      position: absolute;
+      right: -10px; top: -20px;
+      font-size: 180px;
+      opacity: .04;
+      font-family: var(--font-head);
+      font-weight: 900;
+      pointer-events: none;
+      color: var(--gold-primary);
+    }
+    .hero-banner h1 {
+      font-family: var(--font-head);
+      font-size: clamp(1.3rem, 3vw, 2.1rem);
+      font-weight: 900;
+      color: var(--gold-primary);
+      letter-spacing: .06em;
+      line-height: 1.2;
+    }
+    .hero-banner p {
+      margin-top: 8px;
+      color: rgba(240,230,211,0.55);
+      font-size: .9rem;
+      max-width: 400px;
+    }
+    .banner-jackpot {
+      text-align: center;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
+    .banner-jackpot .jlbl {
+      font-family: var(--font-head);
+      font-size: .6rem;
+      letter-spacing: .2em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .banner-jackpot .jval {
+      font-family: var(--font-head);
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--gold-primary);
+      text-shadow: var(--glow-gold);
+      animation: pulse-gold 2.4s infinite;
+    }
+
+    /* ── GAMES GRID ── */
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 18px;
+    }
+    .game-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(165,118,36,0.2);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      text-decoration: none;
+    }
+    .game-card:hover {
+      border-color: rgba(165,118,36,0.55);
+      transform: translateY(-5px);
+      box-shadow: var(--glow-gold), 0 12px 36px rgba(0,0,0,0.4);
+    }
+    .game-card:hover .game-thumb-overlay { opacity: 1; }
+    .game-thumb {
+      height: 130px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      position: relative;
+    }
+    .game-thumb-overlay {
+      position: absolute; inset: 0;
+      background: rgba(165,118,36,0.15);
+      opacity: 0;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .game-thumb-overlay span {
+      font-family: var(--font-head);
+      font-size: .7rem;
+      letter-spacing: .14em;
+      color: var(--gold-primary);
+      background: rgba(0,0,0,0.75);
+      padding: 7px 16px;
+      border: 1px solid var(--gold-dark);
+      border-radius: 999px;
+    }
+    .game-info { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .game-name {
+      font-family: var(--font-head);
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: .06em;
+    }
+    .game-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+    }
+    .game-players { font-size: .7rem; color: var(--text-muted); letter-spacing: .06em; }
+    .game-live-dot {
+      width: 6px; height: 6px;
+      background: #4cff8f;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #4cff8f;
+      animation: blink 1.4s infinite;
+      display: inline-block;
+      margin-right: 4px;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .game-hot-tag {
+      font-family: var(--font-head);
+      font-size: .58rem;
+      letter-spacing: .1em;
+      color: #ff6b35;
+      background: rgba(255,107,53,0.12);
+      border: 1px solid rgba(255,107,53,0.3);
+      border-radius: 999px;
+      padding: 2px 7px;
+    }
+    .game-new-tag {
+      font-family: var(--font-head);
+      font-size: .58rem;
+      letter-spacing: .1em;
+      color: var(--gold-primary);
+      background: rgba(255,202,145,0.1);
+      border: 1px solid rgba(255,202,145,0.3);
+      border-radius: 999px;
+      padding: 2px 7px;
+    }
+    .gt-crash    { background: linear-gradient(135deg, #1a0505 0%, #3a0808 100%); }
+    .gt-roulette { background: linear-gradient(135deg, #0a1a08 0%, #1a3510 100%); }
+    .gt-slots    { background: linear-gradient(135deg, #1a0e00 0%, #3a2000 100%); }
+    .gt-coin     { background: linear-gradient(135deg, #0a0a1a 0%, #101030 100%); }
+    .gt-mines    { background: linear-gradient(135deg, #0d1a00 0%, #1a3300 100%); }
+    .gt-dice     { background: linear-gradient(135deg, #1a1000 0%, #342200 100%); }
+
+    /* ── TOP / PROFILE / WALLET / WITHDRAW modal styles ── */
+    .panel-title {
+      font-family: var(--font-head);
+      font-size: .95rem;
+      letter-spacing: .12em;
+      color: var(--gold-primary);
+      text-transform: uppercase;
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .player-avatar-sm {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold-deep));
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem;
+      border: 1px solid rgba(165,118,36,0.4);
+      flex-shrink: 0;
+    }
+    .top-rank { font-family: var(--font-head); font-weight: 700; font-size: .95rem; }
+    .profile-header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+    .profile-avatar-big {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold-deep));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem;
+      border: 3px solid var(--gold-dark);
+      box-shadow: var(--glow-gold);
+      flex-shrink: 0;
+    }
+    .profile-name {
+      font-family: var(--font-head);
+      font-size: 1.1rem;
+      color: var(--gold-primary);
+      font-weight: 700;
+    }
+    .profile-level { font-size: .72rem; color: var(--text-muted); letter-spacing: .1em; margin-top: 4px; }
+    .profile-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .pstat {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(165,118,36,0.14);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      text-align: center;
+    }
+    .pstat-val { font-family: var(--font-head); font-size: .95rem; font-weight: 700; color: var(--gold-primary); }
+    .pstat-lbl { font-size: .62rem; color: var(--text-muted); letter-spacing: .08em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+  <!-- ══ NAVBAR ══ -->
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <span>🎯</span>
+      <div class="logo-text">
+        SO2 CASINO
+        <span class="so2-tag">STANDOFF 2</span>
+      </div>
+    </div>
+
+    <ul class="navbar-nav">
+      <li><a href="lobby.html" class="active">🎮 Игры</a></li>
+      <li><a href="#" onclick="openModal('topModal');return false">🏆 Топ</a></li>
+      <li><a href="#" onclick="openModal('profileModal');return false">👤 Профиль</a></li>
+      <li><a href="#" onclick="openModal('walletModal');return false">💰 Кошелёк</a></li>
+      <li><a href="#" onclick="openModal('withdrawModal');return false">📤 Вывод</a></li>
+    </ul>
+
+    <div class="navbar-right">
+      <div class="wallet-chip" onclick="openModal('walletModal')">
+        <span class="w-icon">🥇</span>
+        <span class="w-amount" id="nav-balance">—</span>
+      </div>
+      <div class="avatar" onclick="openModal('profileModal')" title="Профиль">👤</div>
+    </div>
+  </nav>
+
+  <!-- ══ LOBBY ══ -->
+  <main class="lobby-wrap">
+    <div class="hero-banner">
+      <div class="hero-banner-bg">SO2</div>
+      <div>
+        <h1>Добро пожаловать,<br/><span id="hero-username">Игрок</span>!</h1>
+        <p>Ставь Gold, испытывай удачу. Без реальных денег — только кайф.</p>
+      </div>
+      <div class="banner-jackpot">
+        <div class="jlbl">🥇 Джекпот</div>
+        <div class="jval" id="jackpot-val">—</div>
+        <div style="font-size:.62rem;color:var(--text-muted);margin-top:4px;letter-spacing:.08em">Gold</div>
+      </div>
+    </div>
+
+    <div class="section-title">🎮 Выбор игры</div>
+
+    <div class="games-grid">
+      <a class="game-card" href="game-crash.html">
+        <div class="game-thumb gt-crash">🚀<div class="game-thumb-overlay"><span>ИГРАТЬ</span></div></div>
+        <div class="game-info">
+          <div class="game-name">КРАШ</div>
+          <div class="game-meta">
+            <span class="game-players"><span class="game-live-dot"></span><span class="online-crash">—</span> играют</span>
+            <span class="game-hot-tag">🔥 HOT</span>
+          </div>
+        </div>
+      </a>
+      <a class="game-card" href="game-roulette.html">
+        <div class="game-thumb gt-roulette">🎰<div class="game-thumb-overlay"><span>ИГРАТЬ</span></div></div>
+        <div class="game-info">
+          <div class="game-name">РУЛЕТКА</div>
+          <div class="game-meta">
+            <span class="game-players"><span class="game-live-dot"></span><span class="online-roulette">—</span> играют</span>
+            <span class="game-hot-tag">🔥 HOT</span>
+          </div>
+        </div>
+      </a>
+      <a class="game-card" href="game-slots.html">
+        <div class="game-thumb gt-slots">🎲<div class="game-thumb-overlay"><span>ИГРАТЬ</span></div></div>
+        <div class="game-info">
+          <div class="game-name">СЛОТЫ</div>
+          <div class="game-meta">
+            <span class="game-players"><span class="game-live-dot"></span><span class="online-slots">—</span> играют</span>
+          </div>
+        </div>
+      </a>
+      <a class="game-card" href="game-coin.html">
+        <div class="game-thumb gt-coin">🪙<div class="game-thumb-overlay"><span>ИГРАТЬ</span></div></div>
+        <div class="game-info">
+          <div class="game-name">МОНЕТКА</div>
+          <div class="game-meta">
+            <span class="game-players"><span class="game-live-dot"></span><span class="online-coin">—</span> играют</span>
+            <span class="game-new-tag">✨ NEW</span>
+          </div>
+        </div>
+      </a>
+      <a class="game-card" href="game-mines.html">
+        <div class="game-thumb gt-mines">💣<div class="game-thumb-overlay"><span>ИГРАТЬ</span></div></div>
+        <div class="game-info">
+          <div class="game-name">МИНЫ</div>
+          <div class="game-meta">
+            <span class="game-players"><span class="game-live-dot"></span><span class="online-mines">—</span> играют</span>
+          </div>
+        </div>
+      </a>
+      <a class="game-card" href="game-dice.html">
+        <div class="game-thumb gt-dice">🎯<div class="game-thumb-overlay"><span>ИГРАТЬ</span></div></div>
+        <div class="game-info">
+          <div class="game-name">КОСТИ</div>
+          <div class="game-meta">
+            <span class="game-players"><span class="game-live-dot"></span><span class="online-dice">—</span> играют</span>
+            <span class="game-new-tag">✨ NEW</span>
+          </div>
+        </div>
+      </a>
+    </div>
+  </main>
+
+  <!-- ══ MODAL: ТОП ══ -->
+  <div class="modal-overlay" id="topModal" style="display:none" onclick="overlayClose(event,'topModal')">
+    <div class="modal-box" style="max-width:520px;width:94vw;animation:cardIn .4s ease">
+      <button class="modal-close" onclick="closeModal('topModal')">✕</button>
+      <div class="panel-title">🏆 Топ игроков</div>
+      <div style="display:flex;gap:8px;margin-bottom:18px">
+        <button class="preset-btn active" id="tab-profit-btn" onclick="switchTopTab('profit')">По прибыли</button>
+        <button class="preset-btn" id="tab-wager-btn" onclick="switchTopTab('wager')">По ставкам</button>
+      </div>
+      <div id="top-loading" style="text-align:center;padding:30px;color:var(--text-muted);font-family:var(--font-head);font-size:.8rem;letter-spacing:.1em">
+        ЗАГРУЗКА...
+      </div>
+      <table class="s2-table" id="top-table" style="display:none">
+        <thead id="top-thead"></thead>
+        <tbody id="top-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: ПРОФИЛЬ ══ -->
+  <div class="modal-overlay" id="profileModal" style="display:none" onclick="overlayClose(event,'profileModal')">
+    <div class="modal-box" style="animation:cardIn .4s ease">
+      <button class="modal-close" onclick="closeModal('profileModal')">✕</button>
+      <div class="panel-title">👤 Профиль</div>
+      <div id="profile-loading" style="text-align:center;padding:30px;color:var(--text-muted);font-family:var(--font-head);font-size:.8rem;letter-spacing:.1em">ЗАГРУЗКА...</div>
+      <div id="profile-content" style="display:none">
+        <div class="profile-header">
+          <div class="profile-avatar-big">👤</div>
+          <div>
+            <div class="profile-name" id="profile-name">—</div>
+            <div class="profile-level" id="profile-level">—</div>
+          </div>
+        </div>
+        <div class="profile-stats">
+          <div class="pstat"><div class="pstat-val" id="ps-games">—</div><div class="pstat-lbl">Игр</div></div>
+          <div class="pstat"><div class="pstat-val" id="ps-wins">—</div><div class="pstat-lbl">Побед</div></div>
+          <div class="pstat"><div class="pstat-val" id="ps-profit">—</div><div class="pstat-lbl">Прибыль</div></div>
+        </div>
+        <div class="xp-bar-wrap">
+          <div class="xp-bar-lbl"><span id="xp-cur">0 XP</span><span id="xp-max">500 XP</span></div>
+          <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: КОШЕЛЁК ══ -->
+  <div class="modal-overlay" id="walletModal" style="display:none" onclick="overlayClose(event,'walletModal')">
+    <div class="modal-box" style="animation:cardIn .4s ease">
+      <button class="modal-close" onclick="closeModal('walletModal')">✕</button>
+      <div class="panel-title">💰 Кошелёк</div>
+      <div class="wallet-balance">
+        <div class="wb-label">Баланс</div>
+        <div class="wb-value" id="wallet-balance-val">—<small> 🥇</small></div>
+      </div>
+      <div class="wallet-actions">
+        <button class="btn btn-gold" style="font-size:.75rem;padding:11px" onclick="openModal('withdrawModal');closeModal('walletModal')">📤 Вывести</button>
+      </div>
+      <div class="divider"></div>
+      <div class="panel-title" style="font-size:.75rem;margin-bottom:12px">История</div>
+      <div id="wallet-loading" style="text-align:center;padding:20px;color:var(--text-muted);font-family:var(--font-head);font-size:.75rem">ЗАГРУЗКА...</div>
+      <div id="wallet-history" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: ВЫВОД ══ -->
+  <div class="modal-overlay" id="withdrawModal" style="display:none" onclick="overlayClose(event,'withdrawModal')">
+    <div class="modal-box" style="animation:cardIn .4s ease">
+      <button class="modal-close" onclick="closeModal('withdrawModal')">✕</button>
+      <div class="panel-title">📤 Вывод Gold</div>
+      <div class="withdraw-info">
+        ⚠️ Вывод производится на <strong>Marketplace Standoff 2</strong>.<br/>
+        Минимум: <strong style="color:var(--gold-primary)">200 🥇</strong> · Комиссия: <strong style="color:var(--gold-primary)">5%</strong>
+      </div>
+      <div class="input-group">
+        <label>Ник в Standoff 2</label>
+        <input class="input-field" type="text" placeholder="Твой ник в игре..." id="wd-nick"/>
+      </div>
+      <div class="input-group">
+        <label>Сумма (Gold)</label>
+        <input class="input-field" type="number" placeholder="Например: 500" id="wd-amount" oninput="updateFee()"/>
+      </div>
+      <div class="amount-presets">
+        <button class="preset-btn" onclick="setAmount(200)">200</button>
+        <button class="preset-btn" onclick="setAmount(500)">500</button>
+        <button class="preset-btn" onclick="setAmount(1000)">1000</button>
+        <button class="preset-btn" onclick="setAmount(2500)">2500</button>
+        <button class="preset-btn" onclick="setAmountAll()">Всё</button>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(165,118,36,0.18);border-radius:var(--radius-sm);padding:14px;margin-bottom:18px;font-size:.85rem;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="color:var(--text-muted)">К выводу:</span>
+          <span id="wd-gross" style="color:var(--gold-primary);font-family:var(--font-head)">0 🥇</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="color:var(--text-muted)">Комиссия 5%:</span>
+          <span id="wd-fee" style="color:#ff6b6b;font-family:var(--font-head)">0 🥇</span>
+        </div>
+        <div class="divider" style="margin:8px 0"></div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--text-muted);font-weight:700">Получишь:</span>
+          <span id="wd-net" style="color:#4cff8f;font-family:var(--font-head);font-weight:700">0 🥇</span>
+        </div>
+      </div>
+      <button class="btn btn-gold" style="width:100%;padding:14px" onclick="doWithdraw()">📤 Вывести Gold</button>
+    </div>
+  </div>
+
+  <script>
+    // ── CONFIG ──
+    const API = window.SO2_API || 'https://your-backend.com/api';
+    const tg  = window.Telegram?.WebApp;
+    if (tg) tg.ready();
+
+    // ── USER from Telegram or localStorage fallback ──
+    const tgUser = tg?.initDataUnsafe?.user;
+    const userId = tgUser?.id || localStorage.getItem('so2_uid') || 'guest';
+    const userName = tgUser?.first_name || tgUser?.username || localStorage.getItem('so2_user') || 'Игрок';
+
+    document.getElementById('hero-username').textContent = userName;
+
+    // ── FETCH helper ──
+    async function apiFetch(path, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', 'X-User-Id': String(userId) };
+      if (tg?.initData) headers['X-Tg-Init-Data'] = tg.initData;
+      const r = await fetch(API + path, { headers, ...opts });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    // ── Balance ──
+    async function loadBalance() {
+      try {
+        const d = await apiFetch('/user/balance');
+        document.getElementById('nav-balance').textContent = d.gold.toLocaleString() + ' 🥇';
+        document.getElementById('wallet-balance-val').innerHTML = d.gold.toLocaleString() + '<small> 🥇</small>';
+        return d.gold;
+      } catch {
+        document.getElementById('nav-balance').textContent = '— 🥇';
+        return 0;
+      }
+    }
+    loadBalance();
+
+    // ── Jackpot ──
+    async function loadJackpot() {
+      try {
+        const d = await apiFetch('/jackpot');
+        document.getElementById('jackpot-val').textContent = Number(d.amount).toLocaleString();
+      } catch {
+        document.getElementById('jackpot-val').textContent = '—';
+      }
+    }
+    loadJackpot();
+    setInterval(loadJackpot, 10000);
+
+    // ── Online counters ──
+    async function loadOnline() {
+      try {
+        const d = await apiFetch('/stats/online');
+        const map = { crash: 'online-crash', roulette: 'online-roulette', slots: 'online-slots', coin: 'online-coin', mines: 'online-mines', dice: 'online-dice' };
+        Object.entries(map).forEach(([key, cls]) => {
+          document.querySelectorAll('.' + cls).forEach(el => {
+            el.textContent = d[key] ?? '—';
+          });
+        });
+      } catch {}
+    }
+    loadOnline();
+    setInterval(loadOnline, 15000);
+
+    // ── Modals ──
+    function openModal(id) {
+      document.getElementById(id).style.display = 'flex';
+      if (id === 'topModal')     loadTop('profit');
+      if (id === 'profileModal') loadProfile();
+      if (id === 'walletModal')  loadWalletHistory();
+    }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function overlayClose(e, id) { if (e.target === document.getElementById(id)) closeModal(id); }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape')
+        ['topModal','profileModal','walletModal','withdrawModal'].forEach(id => {
+          if (document.getElementById(id).style.display !== 'none') closeModal(id);
+        });
+    });
+
+    // ── TOP ──
+    let currentTopTab = 'profit';
+    async function loadTop(tab) {
+      currentTopTab = tab;
+      document.getElementById('top-loading').style.display = 'block';
+      document.getElementById('top-table').style.display = 'none';
+      try {
+        const d = await apiFetch('/leaderboard?type=' + tab);
+        const thead = document.getElementById('top-thead');
+        const tbody = document.getElementById('top-body');
+        thead.innerHTML = tab === 'profit'
+          ? '<tr><th>#</th><th>Игрок</th><th>Прибыль</th><th>Игр</th></tr>'
+          : '<tr><th>#</th><th>Игрок</th><th>Поставлено</th><th>Игр</th></tr>';
+        tbody.innerHTML = d.players.map((p, i) => `
+          <tr>
+            <td><span class="top-rank rank-${i+1}">${['🥇','🥈','🥉'][i] || i+1}</span></td>
+            <td><div style="display:flex;align-items:center;gap:8px">
+              <div class="player-avatar-sm">${(p.name||'?')[0].toUpperCase()}</div>
+              <span>${p.name || '—'}</span>
+            </div></td>
+            <td style="color:${(p.value||0)>=0?'#4cff8f':'#ff6b6b'};font-family:var(--font-head)">
+              ${(p.value||0) >= 0 ? '+' : ''}${(p.value||0).toLocaleString()} 🥇
+            </td>
+            <td style="color:var(--text-muted)">${p.games || 0}</td>
+          </tr>`).join('');
+        document.getElementById('top-loading').style.display = 'none';
+        document.getElementById('top-table').style.display = 'table';
+      } catch {
+        document.getElementById('top-loading').textContent = 'Ошибка загрузки';
+      }
+    }
+    function switchTopTab(tab) {
+      document.getElementById('tab-profit-btn').classList.toggle('active', tab === 'profit');
+      document.getElementById('tab-wager-btn').classList.toggle('active', tab === 'wager');
+      loadTop(tab);
+    }
+
+    // ── PROFILE ──
+    async function loadProfile() {
+      document.getElementById('profile-loading').style.display = 'block';
+      document.getElementById('profile-content').style.display = 'none';
+      try {
+        const d = await apiFetch('/user/profile');
+        document.getElementById('profile-name').textContent = d.name || userName;
+        const titles = ['Новичок','Любитель','Игрок','Ветеран','Мастер','Легенда'];
+        const lvl = Math.min(Math.floor((d.xp||0) / 100) + 1, 6);
+        document.getElementById('profile-level').textContent = `Уровень ${lvl} · ${titles[lvl-1]}`;
+        document.getElementById('ps-games').textContent = d.games || 0;
+        document.getElementById('ps-wins').textContent = d.wins || 0;
+        const profit = d.profit || 0;
+        document.getElementById('ps-profit').textContent = (profit >= 0 ? '+' : '') + profit.toLocaleString() + ' 🥇';
+        document.getElementById('ps-profit').style.color = profit >= 0 ? '#4cff8f' : '#ff6b6b';
+        const xp = Math.min(d.xp || 0, 500);
+        document.getElementById('xp-cur').textContent = xp + ' XP';
+        document.getElementById('xp-fill').style.width = (xp / 5) + '%';
+        document.getElementById('profile-loading').style.display = 'none';
+        document.getElementById('profile-content').style.display = 'block';
+      } catch {
+        document.getElementById('profile-loading').textContent = 'Ошибка загрузки';
+      }
+    }
+
+    // ── WALLET HISTORY ──
+    async function loadWalletHistory() {
+      await loadBalance();
+      document.getElementById('wallet-loading').style.display = 'block';
+      document.getElementById('wallet-history').style.display = 'none';
+      try {
+        const d = await apiFetch('/user/transactions?limit=10');
+        const hist = d.transactions || [];
+        const container = document.getElementById('wallet-history');
+        if (!hist.length) {
+          container.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:.82rem;padding:14px 0">Нет транзакций</div>';
+        } else {
+          container.innerHTML = hist.map(h => `
+            <div class="wh-item">
+              <div>
+                <div style="font-size:.85rem">${h.description || h.type}</div>
+                <div class="wh-date">${new Date(h.created_at).toLocaleString('ru')}</div>
+              </div>
+              <div class="${h.amount >= 0 ? 'wh-plus' : 'wh-minus'}">
+                ${h.amount >= 0 ? '+' : ''}${h.amount.toLocaleString()} 🥇
+              </div>
+            </div>`).join('');
+        }
+        document.getElementById('wallet-loading').style.display = 'none';
+        document.getElementById('wallet-history').style.display = 'block';
+      } catch {
+        document.getElementById('wallet-loading').textContent = 'Ошибка загрузки';
+      }
+    }
+
+    // ── WITHDRAW ──
+    async function setAmountAll() {
+      try {
+        const d = await apiFetch('/user/balance');
+        document.getElementById('wd-amount').value = d.gold;
+        updateFee();
+      } catch {}
+    }
+    function setAmount(v) {
+      document.getElementById('wd-amount').value = v;
+      updateFee();
+    }
+    function updateFee() {
+      const gross = parseInt(document.getElementById('wd-amount').value) || 0;
+      const fee = Math.round(gross * 0.05);
+      document.getElementById('wd-gross').textContent = gross.toLocaleString() + ' 🥇';
+      document.getElementById('wd-fee').textContent   = fee.toLocaleString() + ' 🥇';
+      document.getElementById('wd-net').textContent   = (gross - fee).toLocaleString() + ' 🥇';
+    }
+    async function doWithdraw() {
+      const nick   = document.getElementById('wd-nick').value.trim();
+      const amount = parseInt(document.getElementById('wd-amount').value) || 0;
+      if (!nick)       { showToast('⚠️ Укажи ник в Standoff 2'); return; }
+      if (amount < 200){ showToast('⚠️ Минимум 200 🥇'); return; }
+      try {
+        const d = await apiFetch('/user/withdraw', {
+          method: 'POST',
+          body: JSON.stringify({ nick, amount })
+        });
+        showToast('📤 Заявка на ' + amount.toLocaleString() + ' 🥇 отправлена!');
+        closeModal('withdrawModal');
+        loadBalance();
+      } catch (e) {
+        showToast('❌ ' + e.message);
+      }
+    }
+
+    // ── Toast ──
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => {
+        t.style.transition = 'opacity .3s';
+        t.style.opacity = '0';
+        setTimeout(() => t.remove(), 300);
+      }, 2700);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    .landing-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .bg-logo {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-head);
+      font-size: clamp(100px, 20vw, 240px);
+      font-weight: 900;
+      color: rgba(165,118,36,0.04);
+      letter-spacing: .06em;
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+      z-index: 0;
+    }
+
+    .corner-tl, .corner-br {
+      position: fixed;
+      width: 160px; height: 160px;
+      pointer-events: none;
+    }
+    .corner-tl { top: 20px; left: 20px; border-top: 2px solid rgba(165,118,36,0.3); border-left: 2px solid rgba(165,118,36,0.3); }
+    .corner-br { bottom: 20px; right: 20px; border-bottom: 2px solid rgba(165,118,36,0.3); border-right: 2px solid rgba(165,118,36,0.3); }
+
+    /* Particles */
+    .particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .particle {
+      position: absolute;
+      width: 2px; height: 2px;
+      background: var(--gold-dark);
+      border-radius: 50%;
+      animation: rise linear infinite;
+      opacity: 0;
+    }
+    @keyframes rise {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: .6; }
+      90%  { opacity: .3; }
+      100% { transform: translateY(-20px) scale(1.5); opacity: 0; }
+    }
+
+    /* Hero card */
+    .hero-card {
+      position: relative;
+      z-index: 2;
+      width: min(480px, 94vw);
+      background: rgba(13,14,17,0.88);
+      border: 1px solid rgba(165,118,36,0.28);
+      border-radius: 22px;
+      padding: 52px 44px 44px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 0 80px rgba(0,0,0,0.55), var(--glow-gold);
+      text-align: center;
+      animation: cardIn .55s cubic-bezier(.23,1,.32,1);
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(40px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--gold-dark), var(--gold-primary), var(--gold-dark), transparent);
+      border-radius: 999px;
+    }
+
+    /* Logo */
+    .logo-icon {
+      font-size: 3.4rem;
+      line-height: 1;
+      filter: drop-shadow(0 0 16px rgba(255,202,145,0.5));
+      animation: floatIcon 3s ease-in-out infinite;
+      display: block;
+      margin-bottom: 14px;
+    }
+    @keyframes floatIcon {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+    .logo-title {
+      font-family: var(--font-head);
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--gold-primary);
+      letter-spacing: .14em;
+      text-shadow: var(--glow-gold);
+    }
+    .logo-sub {
+      font-family: var(--font-head);
+      font-size: .6rem;
+      letter-spacing: .28em;
+      color: var(--text-muted);
+      margin-top: 5px;
+      display: block;
+    }
+
+    /* Tagline */
+    .hero-tagline {
+      color: rgba(240,230,211,0.5);
+      font-size: .92rem;
+      margin: 22px 0 28px;
+      line-height: 1.7;
+    }
+
+    /* Stats strip */
+    .stats-strip {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      padding: 14px 20px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(165,118,36,0.12);
+      border-radius: var(--radius-sm);
+      margin-bottom: 32px;
+    }
+    .stat-item { text-align: center; }
+    .stat-val {
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--gold-primary);
+    }
+    .stat-lbl {
+      font-size: .62rem;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Play button */
+    .btn-play {
+      width: 100%;
+      padding: 20px;
+      font-family: var(--font-head);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #a57624 0%, #6f4a13 100%);
+      color: var(--gold-primary);
+      box-shadow: var(--glow-gold);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: var(--transition);
+    }
+    .btn-play::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 60%);
+    }
+    .btn-play:hover {
+      background: linear-gradient(135deg, #c99030 0%, #8a5c1a 100%);
+      box-shadow: 0 0 44px rgba(255,202,145,0.5), 0 0 80px rgba(165,118,36,0.3);
+      transform: translateY(-3px) scale(1.01);
+    }
+    .btn-play:active { transform: translateY(0) scale(0.99); }
+
+    /* Loading state */
+    .btn-play.loading {
+      pointer-events: none;
+      opacity: .8;
+    }
+    .btn-play.loading::after {
+      content: '';
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,202,145,0.3);
+      border-top-color: var(--gold-primary);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-left: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* TG user greeting */
+    .tg-greeting {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 10px 16px;
+      background: rgba(165,118,36,0.08);
+      border: 1px solid rgba(165,118,36,0.18);
+      border-radius: var(--radius-sm);
+    }
+    .tg-greeting.show { display: flex; }
+    .tg-greeting-name {
+      font-family: var(--font-head);
+      font-size: .8rem;
+      color: var(--gold-primary);
+      letter-spacing: .06em;
+    }
+    .tg-greeting-sub {
+      font-size: .7rem;
+      color: var(--text-muted);
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      font-size: .68rem;
+      color: rgba(125,104,74,0.5);
+      letter-spacing: .03em;
+      line-height: 1.7;
+    }
+    .footer-note a { color: rgba(165,118,36,0.6); }
+    .footer-note a:hover { color: var(--gold-primary); }
+  </style>
+</head>
+<body>
+
+  <div class="bg-logo">SO2</div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="particles" id="particles"></div>
+
+  <main class="landing-wrap">
+    <div class="hero-card">
+
+      <!-- Logo -->
+      <span class="logo-icon">🎯</span>
+      <div class="logo-title">SO2 CASINO</div>
+      <span class="logo-sub">STANDOFF 2 · ИГРОВАЯ ПЛАТФОРМА</span>
+
+      <p class="hero-tagline">
+        Испытай удачу с игровой валютой<br/>
+        <strong style="color:var(--gold-primary)">Gold</strong> из Standoff 2.
+        Никаких реальных денег.
+      </p>
+
+      <!-- Live stats -->
+      <div class="stats-strip">
+        <div class="stat-item">
+          <div class="stat-val" id="stat-online">—</div>
+          <div class="stat-lbl">Онлайн</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">6</div>
+          <div class="stat-lbl">Игр</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="stat-jackpot">—</div>
+          <div class="stat-lbl">Джекпот 🥇</div>
+        </div>
+      </div>
+
+      <!-- TG user greeting (shown if opened in Telegram) -->
+      <div class="tg-greeting" id="tg-greeting">
+        <span style="font-size:1.3rem">👋</span>
+        <div>
+          <div class="tg-greeting-name" id="tg-greeting-name">—</div>
+          <div class="tg-greeting-sub">Аккаунт привязан автоматически</div>
+        </div>
+      </div>
+
+      <!-- THE button -->
+      <button class="btn-play" id="play-btn" onclick="startGame()">
+        ⚔️ &nbsp; ИГРАТЬ
+      </button>
+
+      <p class="footer-note">
+        Нажимая «Играть», вы соглашаетесь с <a href="#">правилами</a>.<br/>
+        Только игровая валюта Gold из Standoff 2. 18+
+      </p>
+
+    </div>
+  </main>
+
+  <script>
+    const API = window.SO2_API || 'https://your-backend.com/api';
+    const tg  = window.Telegram?.WebApp;
+
+    // ── Telegram WebApp init ──
+    if (tg) {
+      tg.ready();
+      tg.expand();
+
+      const user = tg.initDataUnsafe?.user;
+      if (user) {
+        const name = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+        document.getElementById('tg-greeting-name').textContent = name;
+        document.getElementById('tg-greeting').classList.add('show');
+      }
+    }
+
+    // ── Particles ──
+    (function() {
+      const c = document.getElementById('particles');
+      for (let i = 0; i < 24; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.cssText = `
+          left: ${Math.random()*100}%;
+          width: ${1+Math.random()*3}px;
+          height: ${1+Math.random()*3}px;
+          animation-duration: ${7+Math.random()*12}s;
+          animation-delay: ${-Math.random()*16}s;
+        `;
+        c.appendChild(p);
+      }
+    })();
+
+    // ── Live stats from backend ──
+    async function loadStats() {
+      try {
+        const r = await fetch(API + '/stats/lobby');
+        const d = await r.json();
+        document.getElementById('stat-online').textContent  = (d.online  || 0).toLocaleString();
+        document.getElementById('stat-jackpot').textContent = (d.jackpot || 0).toLocaleString();
+      } catch {
+        // fallback placeholder if backend not yet connected
+        document.getElementById('stat-online').textContent  = '—';
+        document.getElementById('stat-jackpot').textContent = '—';
+      }
+    }
+    loadStats();
+    setInterval(loadStats, 10000);
+
+    // ── Start: auto-register via backend, then go to lobby ──
+    async function startGame() {
+      const btn = document.getElementById('play-btn');
+      btn.classList.add('loading');
+      btn.textContent = '⚔️  Входим';
+
+      try {
+        // Send Telegram initData to backend for verification & auto-registration
+        const headers = { 'Content-Type': 'application/json' };
+        const body    = { init_data: tg?.initData || null };
+
+        const r = await fetch(API + '/auth/telegram', {
+          method:  'POST',
+          headers,
+          body:    JSON.stringify(body)
+        });
+
+        if (!r.ok) throw new Error('auth failed');
+        const d = await r.json();
+
+        // Save token if backend returns one
+        if (d.token) localStorage.setItem('so2_token', d.token);
+        if (d.user_id) localStorage.setItem('so2_uid', d.user_id);
+        if (d.name)    localStorage.setItem('so2_user', d.name);
+
+        // Go to lobby
+        window.location.href = 'lobby.html';
+
+      } catch (err) {
+        // If no backend yet — just go to lobby directly (dev mode)
+        console.warn('Auth error, dev fallback:', err.message);
+        window.location.href = 'lobby.html';
+      }
+    }
+  </script>
+</body>
+</html>

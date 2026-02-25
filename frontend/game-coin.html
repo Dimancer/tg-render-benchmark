@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino — Монетка</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { padding-top: 60px; }
+
+    .coin-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 160px;
+      margin: 24px 0;
+    }
+    .coin {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      border: 3px solid var(--gold-dark);
+      box-shadow: var(--glow-gold);
+      background: linear-gradient(135deg, var(--gold-deep) 0%, var(--gold-darker) 100%);
+      transition: transform .1s;
+    }
+    .coin.flipping {
+      animation: coinFlip 1s ease-in-out;
+    }
+    @keyframes coinFlip {
+      0%   { transform: rotateY(0deg); }
+      50%  { transform: rotateY(900deg) scale(0.8); }
+      100% { transform: rotateY(1800deg); }
+    }
+
+    .side-pick {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .side-btn {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(165,118,36,0.08);
+      border: 2px solid rgba(165,118,36,0.2);
+      color: var(--gold-primary);
+      font-family: var(--font-head);
+      font-size: .85rem;
+      letter-spacing: .1em;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .side-btn:hover { background: rgba(165,118,36,0.16); border-color: rgba(165,118,36,0.5); }
+    .side-btn.selected {
+      background: rgba(165,118,36,0.22);
+      border-color: var(--gold-primary);
+      box-shadow: var(--glow-gold);
+    }
+    .side-btn .sb-icon { font-size: 1.8rem; }
+    .side-btn .sb-mult {
+      font-size: .65rem;
+      color: var(--text-muted);
+      letter-spacing: .12em;
+    }
+
+    .history-strip {
+      display: flex;
+      gap: 6px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .hist-pill {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .85rem;
+      font-family: var(--font-head);
+      font-size: .7rem;
+    }
+    .hist-heads { background: rgba(165,118,36,0.2); border: 1px solid rgba(165,118,36,0.4); color: var(--gold-primary); }
+    .hist-tails { background: rgba(175,26,31,0.2); border: 1px solid rgba(175,26,31,0.4); color: #ffb3b3; }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <span>🎯</span>
+      <div class="logo-text">SO2 CASINO<span class="so2-tag">STANDOFF 2</span></div>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="lobby.html">🎮 Игры</a></li>
+    </ul>
+    <div class="navbar-right">
+      <div class="wallet-chip">
+        <span class="w-icon">🥇</span>
+        <span class="w-amount" id="nav-balance">—</span>
+      </div>
+      <div class="avatar">👤</div>
+    </div>
+  </nav>
+
+  <main class="game-wrap">
+    <button class="back-btn" onclick="window.location.href='lobby.html'">← Назад в лобби</button>
+
+    <div class="game-panel">
+      <div class="section-title">🪙 Монетка</div>
+
+      <!-- Coin visual -->
+      <div class="coin-display">
+        <div class="coin" id="coin-visual">🪙</div>
+      </div>
+
+      <!-- History -->
+      <div class="history-strip" id="coin-history"></div>
+
+      <div class="divider"></div>
+
+      <!-- Side pick -->
+      <div style="font-family:var(--font-head);font-size:.7rem;letter-spacing:.12em;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase">Выбери сторону</div>
+      <div class="side-pick">
+        <button class="side-btn selected" id="btn-heads" onclick="pickSide('heads')">
+          <span class="sb-icon">⭐</span>
+          <span>ОРЁЛ</span>
+          <span class="sb-mult">x2.00</span>
+        </button>
+        <button class="side-btn" id="btn-tails" onclick="pickSide('tails')">
+          <span class="sb-icon">💀</span>
+          <span>РЕШКА</span>
+          <span class="sb-mult">x2.00</span>
+        </button>
+      </div>
+
+      <!-- Bet row -->
+      <div class="bet-row">
+        <div class="bet-input-wrap input-group" style="margin-bottom:0">
+          <label>Ставка (Gold)</label>
+          <input class="input-field" type="number" id="bet-input" placeholder="100" min="10"/>
+        </div>
+        <button class="btn btn-gold" id="play-btn" onclick="playRound()" style="padding:11px 28px;font-size:.85rem">
+          🪙 Бросить
+        </button>
+      </div>
+
+      <!-- Quick bets -->
+      <div class="amount-presets" style="margin-top:10px">
+        <button class="preset-btn" onclick="setBet(50)">50</button>
+        <button class="preset-btn" onclick="setBet(100)">100</button>
+        <button class="preset-btn" onclick="setBet(250)">250</button>
+        <button class="preset-btn" onclick="setBet(500)">500</button>
+        <button class="preset-btn" onclick="doubleBet()">×2</button>
+        <button class="preset-btn" onclick="halfBet()">½</button>
+      </div>
+
+      <!-- Result -->
+      <div class="result-box result-wait" id="result-box" style="margin-top:24px">
+        Выбери сторону и сделай ставку
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API    = window.SO2_API || 'https://your-backend.com/api';
+    const tg     = window.Telegram?.WebApp;
+    if (tg) tg.ready();
+
+    const userId = tg?.initDataUnsafe?.user?.id || localStorage.getItem('so2_uid') || 'guest';
+    let chosenSide = 'heads';
+    let isPlaying  = false;
+
+    // ── Auth headers ──
+    function getHeaders() {
+      const h = { 'Content-Type': 'application/json', 'X-User-Id': String(userId) };
+      if (tg?.initData) h['X-Tg-Init-Data'] = tg.initData;
+      return h;
+    }
+
+    // ── Load balance ──
+    async function loadBalance() {
+      try {
+        const r = await fetch(API + '/user/balance', { headers: getHeaders() });
+        const d = await r.json();
+        document.getElementById('nav-balance').textContent = d.gold.toLocaleString() + ' 🥇';
+      } catch {
+        document.getElementById('nav-balance').textContent = '— 🥇';
+      }
+    }
+    loadBalance();
+
+    // ── Side pick ──
+    function pickSide(side) {
+      chosenSide = side;
+      document.getElementById('btn-heads').classList.toggle('selected', side === 'heads');
+      document.getElementById('btn-tails').classList.toggle('selected', side === 'tails');
+    }
+
+    // ── Bet helpers ──
+    function setBet(v) { document.getElementById('bet-input').value = v; }
+    function doubleBet() {
+      const v = parseInt(document.getElementById('bet-input').value) || 0;
+      document.getElementById('bet-input').value = v * 2;
+    }
+    function halfBet() {
+      const v = parseInt(document.getElementById('bet-input').value) || 0;
+      document.getElementById('bet-input').value = Math.max(10, Math.floor(v / 2));
+    }
+
+    // ── Play round ──
+    async function playRound() {
+      if (isPlaying) return;
+      const bet = parseInt(document.getElementById('bet-input').value) || 0;
+      if (bet < 10) { showToast('⚠️ Минимальная ставка 10 🥇'); return; }
+
+      isPlaying = true;
+      const btn = document.getElementById('play-btn');
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      const coin = document.getElementById('coin-visual');
+      coin.classList.add('flipping');
+
+      const resultBox = document.getElementById('result-box');
+      resultBox.className = 'result-box result-wait';
+      resultBox.textContent = '🪙 Подбрасываем...';
+
+      try {
+        const r = await fetch(API + '/games/coin/play', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ bet, side: chosenSide })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+
+        // Wait for flip animation
+        await new Promise(res => setTimeout(res, 1000));
+        coin.classList.remove('flipping');
+
+        // Show result based on backend response
+        const won = d.won; // true / false from backend
+        const resultSide = d.result; // 'heads' or 'tails' from backend
+        coin.textContent = resultSide === 'heads' ? '⭐' : '💀';
+
+        if (won) {
+          resultBox.className = 'result-box result-win';
+          resultBox.textContent = `+${(d.payout || bet).toLocaleString()} 🥇 — ПОБЕДА!`;
+        } else {
+          resultBox.className = 'result-box result-lose';
+          resultBox.textContent = `-${bet.toLocaleString()} 🥇 — Не повезло`;
+        }
+
+        // Update history strip
+        addHistory(resultSide);
+        loadBalance();
+
+        setTimeout(() => { coin.textContent = '🪙'; }, 3000);
+
+      } catch (e) {
+        coin.classList.remove('flipping');
+        resultBox.className = 'result-box result-lose';
+        resultBox.textContent = '❌ Ошибка: ' + e.message;
+      }
+
+      btn.disabled = false;
+      btn.textContent = '🪙 Бросить';
+      isPlaying = false;
+    }
+
+    // ── History strip ──
+    const historyData = [];
+    function addHistory(side) {
+      historyData.unshift(side);
+      if (historyData.length > 20) historyData.pop();
+      const strip = document.getElementById('coin-history');
+      strip.innerHTML = historyData.map(s =>
+        `<div class="hist-pill hist-${s === 'heads' ? 'heads' : 'tails'}">${s === 'heads' ? '⭐' : '💀'}</div>`
+      ).join('');
+    }
+
+    // ── Toast ──
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2700);
+    }
+  </script>
+</body>
+</html>

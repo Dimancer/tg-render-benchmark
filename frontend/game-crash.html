@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SO2 Casino — Краш</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { padding-top: 60px; }
+
+    .crash-display {
+      position: relative;
+      height: 240px;
+      background: rgba(0,0,0,0.5);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 20px;
+      border: 1px solid rgba(165,118,36,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .crash-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .crash-mult-overlay {
+      position: relative;
+      z-index: 2;
+      font-family: var(--font-head);
+      font-size: 4rem;
+      font-weight: 900;
+      color: var(--gold-primary);
+      text-shadow: var(--glow-gold);
+      letter-spacing: .06em;
+      transition: color .2s;
+    }
+    .crash-mult-overlay.crashed { color: #ff4444; text-shadow: 0 0 20px rgba(255,68,68,0.6); }
+
+    .crash-status {
+      font-family: var(--font-head);
+      font-size: .7rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .status-waiting { color: var(--text-muted); }
+    .status-running { color: #4cff8f; }
+    .status-crashed { color: #ff4444; }
+
+    .crash-bets-list {
+      max-height: 130px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    .crash-bet-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: .82rem;
+    }
+    .crash-bet-row .cb-name { color: var(--text-muted); }
+    .crash-bet-row .cb-bet { font-family: var(--font-head); color: var(--gold-primary); font-size: .78rem; }
+    .crash-bet-row .cb-cashout { font-family: var(--font-head); font-size: .78rem; }
+    .cb-win  { color: #4cff8f; }
+    .cb-wait { color: var(--text-muted); }
+    .cb-lost { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <span>🎯</span>
+      <div class="logo-text">SO2 CASINO<span class="so2-tag">STANDOFF 2</span></div>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="lobby.html">🎮 Игры</a></li>
+    </ul>
+    <div class="navbar-right">
+      <div class="wallet-chip">
+        <span class="w-icon">🥇</span>
+        <span class="w-amount" id="nav-balance">—</span>
+      </div>
+      <div class="avatar">👤</div>
+    </div>
+  </nav>
+
+  <main class="game-wrap">
+    <button class="back-btn" onclick="window.location.href='lobby.html'">← Назад в лобби</button>
+
+    <div class="game-panel">
+      <div class="section-title">🚀 Краш</div>
+
+      <!-- Chart -->
+      <div class="crash-display">
+        <canvas class="crash-canvas" id="crash-canvas"></canvas>
+        <div class="crash-mult-overlay" id="crash-mult">1.00×</div>
+      </div>
+      <div class="crash-status status-waiting" id="crash-status">⏳ Ожидание следующего раунда...</div>
+
+      <!-- Live bets -->
+      <div class="section-title" style="font-size:.75rem;margin:16px 0 8px">Ставки раунда</div>
+      <div class="crash-bets-list" id="crash-bets-list">
+        <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:.8rem">Нет ставок</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Controls -->
+      <div class="bet-row">
+        <div class="bet-input-wrap input-group" style="margin-bottom:0">
+          <label>Ставка (Gold)</label>
+          <input class="input-field" type="number" id="bet-input" placeholder="100" min="10"/>
+        </div>
+        <div class="input-group" style="margin-bottom:0;min-width:120px">
+          <label>Авто-вывод</label>
+          <input class="input-field" type="number" id="auto-cashout" placeholder="2.00" step="0.1" min="1.1"/>
+        </div>
+      </div>
+      <div class="amount-presets" style="margin-top:10px">
+        <button class="preset-btn" onclick="setBet(50)">50</button>
+        <button class="preset-btn" onclick="setBet(100)">100</button>
+        <button class="preset-btn" onclick="setBet(500)">500</button>
+        <button class="preset-btn" onclick="doubleBet()">×2</button>
+        <button class="preset-btn" onclick="halfBet()">½</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px">
+        <button class="btn btn-gold" id="bet-btn" onclick="placeBet()" style="padding:13px">🚀 Поставить</button>
+        <button class="btn btn-outline" id="cashout-btn" onclick="doCashout()" style="padding:13px" disabled>💰 Вывести</button>
+      </div>
+
+      <div class="result-box result-wait" id="result-box" style="margin-top:16px;font-size:1rem">
+        Жди начала раунда
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API  = window.SO2_API || 'https://your-backend.com/api';
+    const tg   = window.Telegram?.WebApp;
+    if (tg) tg.ready();
+    const userId = tg?.initDataUnsafe?.user?.id || localStorage.getItem('so2_uid') || 'guest';
+
+    function getHeaders() {
+      const h = { 'Content-Type': 'application/json', 'X-User-Id': String(userId) };
+      if (tg?.initData) h['X-Tg-Init-Data'] = tg.initData;
+      return h;
+    }
+
+    async function loadBalance() {
+      try {
+        const r = await fetch(API + '/user/balance', { headers: getHeaders() });
+        const d = await r.json();
+        document.getElementById('nav-balance').textContent = d.gold.toLocaleString() + ' 🥇';
+      } catch {}
+    }
+    loadBalance();
+
+    // ── Game state from backend ──
+    let gameState = { phase: 'waiting', multiplier: 1.00, roundId: null };
+    let myBetPlaced = false;
+    let myCashedOut = false;
+
+    // ── Canvas chart ──
+    const canvas  = document.getElementById('crash-canvas');
+    const ctx     = canvas.getContext('2d');
+    const points  = [];
+
+    function resizeCanvas() {
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawChart() {
+      resizeCanvas();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (points.length < 2) return;
+      const maxM = Math.max(...points, 1.5);
+      const pad  = 20;
+      const w    = canvas.width  - pad * 2;
+      const h    = canvas.height - pad * 2;
+      const xScale = w / (points.length - 1);
+      const yScale = h / maxM;
+
+      ctx.beginPath();
+      ctx.strokeStyle = gameState.phase === 'crashed' ? '#ff4444' : '#a57624';
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = gameState.phase === 'crashed' ? 'rgba(255,68,68,0.5)' : 'rgba(165,118,36,0.5)';
+      ctx.shadowBlur  = 8;
+      points.forEach((m, i) => {
+        const x = pad + i * xScale;
+        const y = canvas.height - pad - m * yScale;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Fill under curve
+      ctx.lineTo(pad + (points.length-1) * xScale, canvas.height - pad);
+      ctx.lineTo(pad, canvas.height - pad);
+      ctx.closePath();
+      ctx.fillStyle = gameState.phase === 'crashed'
+        ? 'rgba(255,68,68,0.06)' : 'rgba(165,118,36,0.08)';
+      ctx.fill();
+    }
+
+    // ── Poll backend for game state ──
+    async function pollGameState() {
+      try {
+        const r = await fetch(API + '/games/crash/state', { headers: getHeaders() });
+        const d = await r.json();
+        // Expected: { phase: 'waiting'|'running'|'crashed', multiplier: 2.34, roundId: 'abc', bets: [...] }
+        updateUI(d);
+      } catch {}
+    }
+
+    function updateUI(d) {
+      gameState = d;
+      const multEl   = document.getElementById('crash-mult');
+      const statusEl = document.getElementById('crash-status');
+
+      multEl.textContent = (d.multiplier || 1).toFixed(2) + '×';
+
+      if (d.phase === 'running') {
+        points.push(d.multiplier);
+        multEl.className = 'crash-mult-overlay';
+        statusEl.className = 'crash-status status-running';
+        statusEl.textContent = '🟢 Раунд идёт';
+        document.getElementById('bet-btn').disabled = myBetPlaced;
+        document.getElementById('cashout-btn').disabled = !myBetPlaced || myCashedOut;
+      } else if (d.phase === 'crashed') {
+        multEl.className = 'crash-mult-overlay crashed';
+        statusEl.className = 'crash-status status-crashed';
+        statusEl.textContent = '💥 Краш на ' + (d.multiplier || 1).toFixed(2) + '×';
+        document.getElementById('cashout-btn').disabled = true;
+        if (myBetPlaced && !myCashedOut) {
+          document.getElementById('result-box').className = 'result-box result-lose';
+          document.getElementById('result-box').textContent = '💥 Краш! Ставка сгорела';
+          loadBalance();
+        }
+        myBetPlaced = false; myCashedOut = false;
+      } else {
+        // waiting
+        points.length = 0;
+        multEl.className = 'crash-mult-overlay';
+        multEl.textContent = '—';
+        statusEl.className = 'crash-status status-waiting';
+        statusEl.textContent = '⏳ Новый раунд через ' + (d.countdown || '?') + 'с';
+        document.getElementById('bet-btn').disabled = false;
+        document.getElementById('cashout-btn').disabled = true;
+        document.getElementById('result-box').className = 'result-box result-wait';
+        document.getElementById('result-box').textContent = 'Жди начала раунда';
+      }
+
+      // Update bets list
+      if (d.bets && d.bets.length) {
+        document.getElementById('crash-bets-list').innerHTML = d.bets.map(b => `
+          <div class="crash-bet-row">
+            <span class="cb-name">${b.name || 'Аноним'}</span>
+            <span class="cb-bet">${b.bet.toLocaleString()} 🥇</span>
+            <span class="cb-cashout ${b.cashout ? 'cb-win' : (d.phase === 'crashed' ? 'cb-lost' : 'cb-wait')}">
+              ${b.cashout ? (b.cashout.toFixed(2) + '× ✓') : (d.phase === 'crashed' ? '💥' : '...')}
+            </span>
+          </div>`).join('');
+      }
+
+      drawChart();
+    }
+
+    setInterval(pollGameState, 500);
+    pollGameState();
+
+    // ── Place bet ──
+    async function placeBet() {
+      const bet = parseInt(document.getElementById('bet-input').value) || 0;
+      const autoCashout = parseFloat(document.getElementById('auto-cashout').value) || null;
+      if (bet < 10) { showToast('⚠️ Минимум 10 🥇'); return; }
+      if (gameState.phase !== 'waiting') { showToast('⚠️ Жди следующего раунда'); return; }
+      try {
+        const r = await fetch(API + '/games/crash/bet', {
+          method:  'POST',
+          headers: getHeaders(),
+          body:    JSON.stringify({ bet, auto_cashout: autoCashout })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        myBetPlaced = true;
+        myCashedOut = false;
+        document.getElementById('bet-btn').disabled = true;
+        document.getElementById('result-box').className = 'result-box result-wait';
+        document.getElementById('result-box').textContent = '✅ Ставка ' + bet.toLocaleString() + ' 🥇 принята';
+        loadBalance();
+        showToast('✅ Ставка ' + bet.toLocaleString() + ' 🥇');
+      } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    // ── Cashout ──
+    async function doCashout() {
+      if (!myBetPlaced || myCashedOut) return;
+      try {
+        const r = await fetch(API + '/games/crash/cashout', {
+          method:  'POST',
+          headers: getHeaders()
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+        myCashedOut = true;
+        document.getElementById('cashout-btn').disabled = true;
+        document.getElementById('result-box').className = 'result-box result-win';
+        document.getElementById('result-box').textContent = '💰 +' + (d.payout || 0).toLocaleString() + ' 🥇 · x' + gameState.multiplier.toFixed(2);
+        loadBalance();
+        showToast('💰 Вывел x' + gameState.multiplier.toFixed(2));
+      } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    // ── Bet helpers ──
+    function setBet(v) { document.getElementById('bet-input').value = v; }
+    function doubleBet() { document.getElementById('bet-input').value = (parseInt(document.getElementById('bet-input').value)||0)*2; }
+    function halfBet()  { document.getElementById('bet-input').value = Math.max(10, Math.floor((parseInt(document.getElementById('bet-input').value)||0)/2)); }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 2700);
+    }
+  </script>
+</body>
+</html>
