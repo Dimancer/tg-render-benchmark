@@ -1,21 +1,19 @@
 import os
-from fastapi import FastAPI, Request
+import random
+import time
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import WebAppInfo
 from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("BOT_TOKEN")
-# URL твоего приложения на Render (например, https://my-casino.onrender.com)
-APP_URL = os.getenv("RENDER_EXTERNAL_URL") 
+APP_URL = os.getenv("RENDER_EXTERNAL_URL")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 app = FastAPI()
 
-# Имитация базы данных (в памяти)
-# ВАЖНО: На бесплатном Render данные сбросятся при перезагрузке.
 users_db = {}
 
 @app.on_event("startup")
@@ -30,30 +28,46 @@ async def webhook(request: Request):
 @dp.message(CommandStart())
 async def start(message: types.Message):
     markup = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="Играть в Gold Casino 🎰", web_app=WebAppInfo(url=f"{APP_URL}/"))]
+        [types.InlineKeyboardButton(text="Играть в GOLD CRASH 🚀", web_app=WebAppInfo(url=f"{APP_URL}/"))]
     ])
-    await message.answer(f"Привет, {message.from_user.first_name}! Заходи в наше казино Standoff 2. Твой стартовый баланс: 500 Gold.", reply_markup=markup)
+    await message.answer(f"🚀 Добро пожаловать в Crash!\n\nТвой баланс: 500 Gold.", reply_markup=markup)
 
-# API для получения данных игрока (Автологин)
 @app.get("/api/get_user")
 async def get_user(user_id: int, name: str):
     if user_id not in users_db:
-        users_db[user_id] = {"balance": 500, "name": name}
+        users_db[user_id] = {"balance": 1000, "name": name}
     return users_db[user_id]
 
-# API для игры (крутить слот)
-@app.get("/api/play")
-async def play(user_id: int, bet: int):
+@app.get("/api/crash_result")
+async def crash_result(user_id: int, bet: int, cashout_multiplier: float):
     user = users_db.get(user_id)
     if not user or user["balance"] < bet:
-        return {"error": "Недостаточно Gold!"}
-    
-    import random
-    win_multiplier = random.choice([0, 0, 0, 0.5, 2, 5]) # Шансы
-    win_amount = int(bet * win_multiplier)
-    user["balance"] = user["balance"] - bet + win_amount
-    
-    return {"new_balance": user["balance"], "win": win_amount}
+        raise HTTPException(status_code=400, detail="Low balance")
 
-# Раздача фронтенда
+    # Генерируем точку краша на сервере
+    # Математика типичного краша
+    e = 2**32
+    h = random.getrandbits(32)
+    crash_point = floor((100 * e - h) / (e - h)) / 100.0
+    crash_point = max(1.0, crash_point) # Минимум 1.0
+
+    user["balance"] -= bet
+    
+    win = 0
+    success = False
+    
+    if cashout_multiplier <= crash_point:
+        win = int(bet * cashout_multiplier)
+        user["balance"] += win
+        success = True
+        
+    return {
+        "success": success,
+        "win": win,
+        "crash_point": crash_point,
+        "new_balance": user["balance"]
+    }
+
+def floor(n): return int(n)
+
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
