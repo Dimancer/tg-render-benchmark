@@ -9,25 +9,24 @@
         :root { --gold: #FFB400; --accent: #FF8A00; --bg: #0D0D0D; --card: #1A1A1A; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; height: 100vh; }
-        
+
         .header { padding: 20px; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(to bottom, #1A1A1A, #0D0D0D); border-bottom: 2px solid #222; }
         .balance-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
         .balance-value { font-family: 'Orbitron', sans-serif; font-size: 20px; color: var(--gold); text-shadow: 0 0 10px rgba(255,180,0,0.3); }
 
-        /* Game Area */
         .game-container { position: relative; width: 100%; height: 350px; background: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%); overflow: hidden; }
         #gameCanvas { width: 100%; height: 100%; }
         #multiplier { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font-family: 'Orbitron', sans-serif; font-size: 64px; font-weight: 900; z-index: 10; pointer-events: none; text-shadow: 0 0 30px rgba(0,0,0,0.8); }
 
-        /* Controls */
         .controls { padding: 25px; background: var(--card); border-radius: 30px 30px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); position: fixed; bottom: 0; width: 100%; }
         .input-box { background: #111; border: 1px solid #333; border-radius: 15px; display: flex; align-items: center; padding: 5px 15px; margin-bottom: 15px; }
         input { background: transparent; border: none; color: white; padding: 15px; font-size: 20px; font-weight: bold; width: 100%; outline: none; }
-        
+
         .main-btn { width: 100%; padding: 20px; border-radius: 15px; border: none; font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; cursor: pointer; transition: 0.2s; text-transform: uppercase; }
-        .btn-bet { background: linear-gradient(135deg, var(--gold), var(--accent)); color: #000; box-shadow: 0 5px 20px rgba(255,138,0,0.4); }
+        .btn-bet  { background: linear-gradient(135deg, var(--gold), var(--accent)); color: #000; box-shadow: 0 5px 20px rgba(255,138,0,0.4); }
         .btn-cash { background: linear-gradient(135deg, #00FF85, #00A356); color: #000; box-shadow: 0 5px 20px rgba(0,255,133,0.4); }
         .main-btn:active { transform: scale(0.96); }
+        .main-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         .history { position: absolute; top: 85px; left: 0; width: 100%; display: flex; gap: 8px; padding: 10px; z-index: 5; pointer-events: none; opacity: 0.6; }
         .hist-item { padding: 4px 10px; border-radius: 6px; background: #222; font-size: 12px; font-weight: bold; font-family: 'Orbitron'; }
@@ -35,185 +34,225 @@
 </head>
 <body>
 
-    <div class="header">
-        <div>
-            <div class="balance-label">Твой инвентарь</div>
-            <div id="balance" class="balance-value">0 G</div>
-        </div>
-        <img src="https://avatars.mds.yandex.net/get-altay/1545638/2a0000016987f1396a5b671a5f4f466666/orig" width="40" style="border-radius: 50%; border: 1px solid var(--gold);">
+<div class="header">
+    <div>
+        <div class="balance-label">Твой инвентарь</div>
+        <div id="balance" class="balance-value">0 G</div>
     </div>
+    <img src="https://avatars.mds.yandex.net/get-altay/1545638/2a0000016987f1396a5b671a5f4f466666/orig" width="40" style="border-radius: 50%; border: 1px solid var(--gold);">
+</div>
 
-    <div class="history" id="history"></div>
+<div class="history" id="history"></div>
 
-    <div class="game-container">
-        <div id="multiplier">1.00x</div>
-        <canvas id="gameCanvas"></canvas>
+<div class="game-container">
+    <div id="multiplier">1.00x</div>
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<div class="controls">
+    <div class="input-box">
+        <span style="color: var(--gold); font-weight: bold;">G</span>
+        <input type="number" id="betInput" value="100" min="1">
     </div>
+    <button id="actionBtn" class="main-btn btn-bet" onclick="handleAction()">СДЕЛАТЬ СТАВКУ</button>
+</div>
 
-    <div class="controls">
-        <div class="input-box">
-            <span style="color: var(--gold); font-weight: bold;">G</span>
-            <input type="number" id="betInput" value="100">
-        </div>
-        <button id="actionBtn" class="main-btn btn-bet" onclick="handleAction()">СДЕЛАТЬ СТАВКУ</button>
-    </div>
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
 
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const multText = document.getElementById('multiplier');
-        
-        let balance = 0;
-        let isRunning = false;
-        let serverStartTime = 0;
-        let currentMult = 1.00;
-        let animationId;
+    const canvas   = document.getElementById('gameCanvas');
+    const ctx      = canvas.getContext('2d');
+    const multText = document.getElementById('multiplier');
 
-        // Корректный размер канваса
-        function resize() {
-            canvas.width = window.innerWidth * window.devicePixelRatio;
-            canvas.height = 350 * window.devicePixelRatio;
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-        }
-        window.onresize = resize;
-        resize();
+    let balance        = 0;
+    let isRunning      = false;
+    let currentMult    = 1.00;
+    let currentElapsed = 0;
+    let tickInterval;
+    let userId;
 
-        async function init() {
-            const user = tg.initDataUnsafe.user;
-            const res = await fetch(`/api/get_user?user_id=${user.id}&name=${user.first_name}`);
+    function apiFetch(url, options = {}) {
+        return fetch(url, {
+            ...options,
+            headers: { ...(options.headers || {}), 'X-Init-Data': tg.initData }
+        });
+    }
+
+    function resize() {
+        canvas.width  = window.innerWidth * window.devicePixelRatio;
+        canvas.height = 350 * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.onresize = resize;
+    resize();
+
+    async function init() {
+        const user = tg.initDataUnsafe.user;
+        userId = user.id;
+        const res = await apiFetch(`/api/get_user?user_id=${userId}&name=${encodeURIComponent(user.first_name)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        balance = data.balance;
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('balance').innerText = balance.toLocaleString() + ' G';
+    }
+
+    async function handleAction() {
+        const btn = document.getElementById('actionBtn');
+        btn.disabled = true;
+
+        if (!isRunning) {
+            const bet = parseInt(document.getElementById('betInput').value, 10);
+            if (!bet || bet < 1) { btn.disabled = false; return; }
+
+            const res = await apiFetch(`/api/place_bet?user_id=${userId}&bet=${bet}`, { method: 'POST' });
+            if (!res.ok) {
+                tg.HapticFeedback.notificationOccurred('error');
+                btn.disabled = false;
+                return;
+            }
+
             const data = await res.json();
-            balance = data.balance;
+            balance = data.new_balance;
             updateUI();
-        }
+            startGame();
+            btn.innerText = 'ЗАБРАТЬ';
+            btn.className = 'main-btn btn-cash';
+            btn.disabled  = false;
 
-        function updateUI() {
-            document.getElementById('balance').innerText = balance.toLocaleString() + " G";
-        }
+        } else {
+            const res  = await apiFetch(`/api/cashout?user_id=${userId}`, { method: 'POST' });
+            const data = await res.json();
+            stopGame();
 
-        async function handleAction() {
-            const userId = tg.initDataUnsafe.user.id;
-            const btn = document.getElementById('actionBtn');
-
-            if (!isRunning) {
-                const bet = document.getElementById('betInput').value;
-                const res = await fetch(`/api/place_bet?user_id=${userId}&bet=${bet}`, {method: 'POST'});
-                if (!res.ok) { tg.HapticFeedback.notificationOccurred('error'); return; }
-                
-                const data = await res.json();
+            if (data.status === 'win') {
                 balance = data.new_balance;
-                serverStartTime = data.server_time;
-                updateUI();
-                startAnimation();
-                btn.innerText = "ЗАБРАТЬ";
-                btn.className = "main-btn btn-cash";
+                tg.HapticFeedback.notificationOccurred('success');
+                multText.style.color = '#00FF85';
+                addHistory(data.mult.toFixed(2), true);
             } else {
-                const res = await fetch(`/api/cashout?user_id=${userId}`, {method: 'POST'});
-                const data = await res.json();
-                
-                stopAnimation();
-                if (data.status === "win") {
-                    balance = data.new_balance;
-                    tg.HapticFeedback.notificationOccurred('success');
-                    multText.style.color = "#00FF85";
-                    addHistory(data.mult.toFixed(2), true);
-                } else {
-                    crash(data.crash_point);
-                }
-                updateUI();
-                btn.innerText = "СДЕЛАТЬ СТАВКУ";
-                btn.className = "main-btn btn-bet";
+                showCrash(data.crash_point);
             }
+            updateUI();
+            btn.innerText = 'СДЕЛАТЬ СТАВКУ';
+            btn.className = 'main-btn btn-bet';
+            btn.disabled  = false;
         }
+    }
 
-        function startAnimation() {
-            isRunning = true;
-            multText.style.color = "white";
-            animate();
-        }
+    // ── Tick loop: фронт только рисует то что вернул сервер ──────────────────
+    function startGame() {
+        isRunning      = true;
+        currentMult    = 1.00;
+        currentElapsed = 0;
+        multText.style.color = 'white';
+        multText.innerText   = '1.00x';
+        draw(0, 1.00);
 
-        function animate() {
+        tickInterval = setInterval(async () => {
             if (!isRunning) return;
+            try {
+                const res  = await apiFetch(`/api/tick?user_id=${userId}`);
+                const data = await res.json();
 
-            const now = Date.now() / 1000;
-            const elapsed = now - serverStartTime;
-            
-            // Единая формула: 1.08 в степени времени
-            currentMult = Math.pow(1.08, elapsed * 2.5); 
-            multText.innerText = currentMult.toFixed(2) + "x";
+                if (data.status === 'crashed') {
+                    stopGame();
+                    showCrash(data.crash_point);
+                    const btn = document.getElementById('actionBtn');
+                    btn.innerText = 'СДЕЛАТЬ СТАВКУ';
+                    btn.className = 'main-btn btn-bet';
+                    btn.disabled  = false;
+                    return;
+                }
 
-            draw(elapsed);
-            animationId = requestAnimationFrame(animate);
-        }
-
-        function draw(elapsed) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const w = canvas.width / window.devicePixelRatio;
-            const h = canvas.height / window.devicePixelRatio;
-            
-            // Настройки линии
-            ctx.beginPath();
-            ctx.strokeStyle = '#FFB400';
-            ctx.lineWidth = 5;
-            ctx.lineCap = 'round';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = 'rgba(255, 180, 0, 0.5)';
-
-            ctx.moveTo(0, h - 20);
-
-            // Отрисовка траектории
-            let lastX = 0;
-            let lastY = h - 20;
-
-            for (let i = 0; i <= elapsed; i += 0.05) {
-                let tx = (i / 10) * w; // Растягиваем по горизонтали
-                let ty = (h - 20) - (Math.pow(1.08, i * 2.5) * 15);
-                ctx.lineTo(tx, ty);
-                lastX = tx;
-                lastY = ty;
+                if (data.status === 'running') {
+                    currentMult    = data.mult;
+                    currentElapsed = data.elapsed;
+                    multText.innerText = currentMult.toFixed(2) + 'x';
+                    draw(currentElapsed, currentMult);
+                }
+            } catch (e) {
+                // сеть упала — ждём следующего тика
             }
+        }, 100);
+    }
 
-            // Плавная доводка до текущего момента
-            let curX = (elapsed / 10) * w;
-            let curY = (h - 20) - (currentMult * 15);
-            ctx.lineTo(curX, curY);
-            ctx.stroke();
+    function stopGame() {
+        isRunning = false;
+        clearInterval(tickInterval);
+    }
 
-            // РАКЕТА (Точка свечения)
-            ctx.shadowBlur = 25;
-            ctx.fillStyle = "white";
-            ctx.beginPath();
-            ctx.arc(curX, curY, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
+    // ── Draw ──────────────────────────────────────────────────────────────────
+    // Формула та же что на сервере: 1.08 ^ (t / 2.5)
+    // При t=0: 1.08^0 = 1.00 → график ВСЕГДА начинается с 1.00, не с 0
+    function calcMult(t) {
+        return Math.pow(1.08, t / 2.5);
+    }
+
+    function draw(elapsed, mult) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const w = canvas.width  / window.devicePixelRatio;
+        const h = canvas.height / window.devicePixelRatio;
+
+        // scaleY: (mult - 1.0) отображается на высоту канваса
+        // При mult=1.00: Y = h-20 (самый низ). Растёт вверх.
+        const scaleY = (h - 40) / Math.max(mult - 1.0 + 0.5, 1.5);
+        const scaleX = w / Math.max(elapsed + 2, 5);
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#FFB400';
+        ctx.lineWidth   = 5;
+        ctx.lineCap     = 'round';
+        ctx.shadowBlur  = 15;
+        ctx.shadowColor = 'rgba(255, 180, 0, 0.5)';
+
+        // t=0, mult=1.00 → нижний левый угол
+        ctx.moveTo(0, h - 20);
+
+        for (let t = 0.05; t <= elapsed; t += 0.05) {
+            const tx = t * scaleX;
+            const ty = (h - 20) - (calcMult(t) - 1.00) * scaleY;
+            ctx.lineTo(tx, ty);
         }
 
-        function stopAnimation() {
-            isRunning = false;
-            cancelAnimationFrame(animationId);
-        }
+        // Финальная точка — значение от сервера
+        const curX = elapsed * scaleX;
+        const curY = (h - 20) - (mult - 1.00) * scaleY;
+        ctx.lineTo(curX, curY);
+        ctx.stroke();
 
-        function crash(point) {
-            stopAnimation();
-            multText.innerText = point.toFixed(2) + "x";
-            multText.style.color = "#FF3E3E";
-            tg.HapticFeedback.notificationOccurred('error');
-            addHistory(point.toFixed(2), false);
-        }
+        // Светящаяся точка
+        ctx.shadowBlur = 25;
+        ctx.fillStyle  = 'white';
+        ctx.beginPath();
+        ctx.arc(curX, curY, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
 
-        function addHistory(val, win) {
-            const h = document.getElementById('history');
-            const el = document.createElement('div');
-            el.className = 'hist-item';
-            el.style.color = win ? "#00FF85" : "#FF3E3E";
-            el.innerText = val + "x";
-            h.prepend(el);
-            if(h.children.length > 5) h.lastChild.remove();
-        }
+    function showCrash(point) {
+        multText.innerText   = point.toFixed(2) + 'x';
+        multText.style.color = '#FF3E3E';
+        tg.HapticFeedback.notificationOccurred('error');
+        addHistory(point.toFixed(2), false);
+    }
 
-        init();
-    </script>
+    function addHistory(val, win) {
+        const h  = document.getElementById('history');
+        const el = document.createElement('div');
+        el.className   = 'hist-item';
+        el.style.color = win ? '#00FF85' : '#FF3E3E';
+        el.innerText   = val + 'x';
+        h.prepend(el);
+        if (h.children.length > 5) h.lastChild.remove();
+    }
+
+    init();
+</script>
 </body>
 </html>
