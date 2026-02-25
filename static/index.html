@@ -1,266 +1,153 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <title>SO2 CRASH</title>
     <style>
-        :root {
-            --gold: #ffb400;
-            --dark: #0a0a0a;
-            --card: #151515;
-            --red: #ff3e3e;
-            --green: #00ff7f;
-        }
-
-        body {
-            background: var(--dark);
-            color: white;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        .header {
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--card);
-            border-bottom: 1px solid #222;
-        }
-
-        .balance-box {
-            background: rgba(255, 180, 0, 0.1);
-            padding: 5px 15px;
-            border-radius: 20px;
-            border: 1px solid var(--gold);
-            color: var(--gold);
-            font-weight: bold;
-        }
-
-        /* Зона краша */
-        .game-area {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-
-        #multiplier {
-            font-size: 80px;
-            font-weight: 900;
-            transition: transform 0.1s;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
-        }
-
-        .crushed {
-            color: var(--red) !important;
-            animation: shake 0.4s;
-        }
-
-        @keyframes shake {
-            0% { transform: translate(1px, 1px) rotate(0deg); }
-            20% { transform: translate(-3px, 0px) rotate(-1deg); }
-            40% { transform: translate(3px, 2px) rotate(1deg); }
-            60% { transform: translate(-1px, -1px) rotate(0deg); }
-            100% { transform: translate(0, 0) rotate(0deg); }
-        }
-
-        /* Кнопки и ввод */
-        .controls {
-            background: var(--card);
-            padding: 25px;
-            border-radius: 30px 30px 0 0;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        input {
-            flex-grow: 1;
-            background: #222;
-            border: 1px solid #333;
-            color: white;
-            padding: 15px;
-            border-radius: 12px;
-            font-size: 18px;
-            outline: none;
-        }
-
-        .main-btn {
-            padding: 20px;
-            border-radius: 15px;
-            border: none;
-            font-size: 20px;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .btn-start { background: var(--gold); color: black; }
-        .btn-cashout { background: var(--green); color: black; box-shadow: 0 0 20px rgba(0, 255, 127, 0.4); }
-        .btn-disabled { background: #333; color: #777; pointer-events: none; }
-
-        .history {
-            display: flex;
-            gap: 8px;
-            padding: 10px;
-            overflow-x: auto;
-            font-size: 12px;
-        }
-
-        .history-item {
-            padding: 2px 8px;
-            border-radius: 4px;
-            background: #222;
-        }
+        :root { --gold: #ffb400; --bg: #0f0f0f; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; overflow: hidden; }
+        .header { padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
+        #gameCanvas { width: 100%; height: 300px; background: #151515; }
+        .controls { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .main-btn { padding: 18px; border-radius: 12px; border: none; font-weight: bold; font-size: 18px; cursor: pointer; }
+        .btn-bet { background: var(--gold); color: black; }
+        .btn-cash { background: #00ff7f; color: black; }
+        input { background: #222; border: 1px solid #333; color: white; padding: 12px; border-radius: 8px; text-align: center; }
+        #mult { position: absolute; width: 100%; text-align: center; top: 150px; font-size: 48px; font-weight: bold; pointer-events: none; }
     </style>
 </head>
 <body>
-
     <div class="header">
-        <div style="font-weight: bold;">GOLD CRASH</div>
-        <div class="balance-box" id="balance">0 G</div>
+        <span style="color: var(--gold); font-weight: bold;">STAY GOLD</span>
+        <span id="balance">Загрузка...</span>
     </div>
 
-    <div class="history" id="history"></div>
-
-    <div class="game-area">
-        <div id="multiplier">1.00x</div>
-        <div id="status-text" style="margin-top: 10px; color: #555;">Ожидание ставки...</div>
+    <div style="position: relative;">
+        <canvas id="gameCanvas"></canvas>
+        <div id="mult">1.00x</div>
     </div>
 
     <div class="controls">
-        <div class="input-group">
-            <input type="number" id="betAmount" value="100" placeholder="Сумма ставки">
-        </div>
-        <button id="actionBtn" class="main-btn btn-start" onclick="handleAction()">ПОСТАВИТЬ</button>
+        <input type="number" id="betInput" value="100">
+        <button id="actionBtn" class="main-btn btn-bet" onclick="handleAction()">СТАВКА</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand();
-        tg.enableClosingConfirmation();
-
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const multText = document.getElementById('mult');
+        
         let balance = 0;
-        let currentMultiplier = 1.00;
         let isRunning = false;
-        let gameInterval;
-        let betValue = 0;
+        let startTime = 0;
+        let currentMult = 1.00;
+        let animationId;
 
-        const multDisplay = document.getElementById('multiplier');
-        const actionBtn = document.getElementById('actionBtn');
-        const balanceDisplay = document.getElementById('balance');
+        // Настройка канваса под экран
+        canvas.width = window.innerWidth;
+        canvas.height = 300;
 
-        async function init() {
+        async function loadUser() {
             const user = tg.initDataUnsafe.user;
             const res = await fetch(`/api/get_user?user_id=${user.id}&name=${user.first_name}`);
             const data = await res.json();
             balance = data.balance;
-            updateUI();
+            document.getElementById('balance').innerText = balance + " G";
         }
 
-        function updateUI() {
-            balanceDisplay.innerText = balance + " G";
-        }
-
-        function handleAction() {
-            if (!isRunning) {
-                startGame();
-            } else {
-                cashOut();
-            }
-        }
-
-        function startGame() {
-            const input = document.getElementById('betAmount');
-            betValue = parseInt(input.value);
-
-            if (betValue > balance || betValue <= 0) {
-                tg.showAlert("Недостаточно Gold!");
-                return;
-            }
-
-            // Сбрасываем состояние
-            isRunning = true;
-            currentMultiplier = 1.00;
-            multDisplay.classList.remove('crushed');
-            multDisplay.style.color = 'white';
-            
-            actionBtn.innerText = "ЗАБРАТЬ";
-            actionBtn.className = "main-btn btn-cashout";
-            document.getElementById('status-text').innerText = "Ракета летит!";
-
-            // Анимация роста
-            gameInterval = setInterval(() => {
-                currentMultiplier += 0.01 + (currentMultiplier * 0.005);
-                multDisplay.innerText = currentMultiplier.toFixed(2) + "x";
-                
-                // Случайный визуальный краш (только для фронтенда, проверка на бэке)
-                if (Math.random() < 0.005 && currentMultiplier > 2.0) {
-                    // Это просто для теста, реальный краш проверит сервер
-                }
-            }, 100);
-        }
-
-        async function cashOut() {
-            stopGame();
+        async function handleAction() {
             const user = tg.initDataUnsafe.user;
-            
-            const res = await fetch(`/api/crash_result?user_id=${user.id}&bet=${betValue}&cashout_multiplier=${currentMultiplier.toFixed(2)}`);
-            const data = await res.json();
+            const btn = document.getElementById('actionBtn');
 
-            if (data.success) {
+            if (!isRunning) {
+                const bet = document.getElementById('betInput').value;
+                const res = await fetch(`/api/place_bet?user_id=${user.id}&bet=${bet}`, {method: 'POST'});
+                if (!res.ok) return alert("Ошибка!");
+                
+                const data = await res.json();
                 balance = data.new_balance;
-                multDisplay.style.color = 'var(--green)';
-                tg.HapticFeedback.notificationOccurred('success');
-                showHistory(currentMultiplier.toFixed(2), true);
+                document.getElementById('balance').innerText = balance + " G";
+
+                startAnimation();
+                btn.innerText = "ЗАБРАТЬ";
+                btn.className = "main-btn btn-cash";
             } else {
-                crashEffect(data.crash_point);
+                const res = await fetch(`/api/cashout?user_id=${user.id}&current_multiplier=${currentMult.toFixed(2)}`, {method: 'POST'});
+                const data = await res.json();
+                
+                stopAnimation();
+                if (data.status === "win") {
+                    balance = data.new_balance;
+                    tg.HapticFeedback.notificationOccurred('success');
+                    multText.style.color = "#00ff7f";
+                } else {
+                    crash(data.crash_point);
+                }
+                document.getElementById('balance').innerText = balance + " G";
+                btn.innerText = "СТАВКА";
+                btn.className = "main-btn btn-bet";
             }
-            updateUI();
         }
 
-        function stopGame() {
-            clearInterval(gameInterval);
+        function startAnimation() {
+            isRunning = true;
+            startTime = Date.now();
+            currentMult = 1.00;
+            multText.style.color = "white";
+            animate();
+        }
+
+        function animate() {
+            if (!isRunning) return;
+
+            const elapsed = (Date.now() - startTime) / 1000;
+            currentMult = Math.pow(1.15, elapsed * 2); // Плавный рост
+            multText.innerText = currentMult.toFixed(2) + "x";
+
+            // Рисуем график
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffb400';
+            ctx.lineWidth = 4;
+            ctx.moveTo(0, canvas.height);
+
+            for (let x = 0; x < canvas.width; x++) {
+                let t = (x / canvas.width) * elapsed;
+                let y = canvas.height - (Math.pow(1.15, t * 2) * 20);
+                if (x / canvas.width > 1) break;
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Рисуем "ракету" (желтый круг)
+            let headX = Math.min(elapsed * 50, canvas.width - 20);
+            let headY = canvas.height - (currentMult * 20);
+            ctx.fillStyle = '#ffb400';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ffb400';
+            ctx.beginPath();
+            ctx.arc(headX, headY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function stopAnimation() {
             isRunning = false;
-            actionBtn.innerText = "ПОСТАВИТЬ";
-            actionBtn.className = "main-btn btn-start";
+            cancelAnimationFrame(animationId);
         }
 
-        function crashEffect(point) {
-            stopGame();
-            balance -= betValue; // Условно, сервер уже вычел
-            multDisplay.innerText = point.toFixed(2) + "x";
-            multDisplay.classList.add('crushed');
-            document.getElementById('status-text').innerText = "CRASHED!";
+        function crash(point) {
+            stopAnimation();
+            multText.innerText = point.toFixed(2) + "x";
+            multText.style.color = "#ff3e3e";
             tg.HapticFeedback.notificationOccurred('error');
-            showHistory(point.toFixed(2), false);
         }
 
-        function showHistory(val, win) {
-            const hist = document.getElementById('history');
-            const item = document.createElement('div');
-            item.className = 'history-item';
-            item.style.color = win ? 'var(--green)' : 'var(--red)';
-            item.innerText = val + 'x';
-            hist.prepend(item);
-        }
-
-        init();
+        loadUser();
     </script>
 </body>
 </html>
