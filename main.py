@@ -1,11 +1,12 @@
 import os, time, random, sqlite3, hashlib, hmac
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import WebAppInfo
 from aiogram.filters import CommandStart
 
-# ─── DB ───────────────────────────────────────────────────────────────────────
+# ─── DB ────────────────────────────────────────────────────────────────────────
 def init_db():
     with sqlite3.connect("database.db") as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, balance INTEGER)")
@@ -20,7 +21,7 @@ app = FastAPI()
 
 active_games: dict = {}
 
-# ─── Telegram initData validation ─────────────────────────────────────────────
+# ─── Telegram initData validation ──────────────────────────────────────────────
 def validate_init_data(init_data: str) -> bool:
     try:
         parsed = dict(kv.split("=", 1) for kv in init_data.split("&") if "=" in kv)
@@ -34,18 +35,19 @@ def validate_init_data(init_data: str) -> bool:
     except Exception:
         return False
 
-# ─── Crash point (house edge ~2%) ─────────────────────────────────────────────
+# ─── Crash point generation (house edge ~2%) ──────────────────────────────────
 def generate_crash_point() -> float:
     r = random.random()
-    if r < 0.02:
+    if r < 0.02:          # 2% instant crash
         return 1.00
     return round(0.99 / (1.0 - r), 2)
 
-# ─── Единая формула множителя ─────────────────────────────────────────────────
+# ─── Multiplier formula (shared between server & client) ─────────────────────
+# mult(t) = 1.08 ^ (t / 2.5)  — elapsed in seconds
 def calc_mult(elapsed: float) -> float:
     return round(1.08 ** (elapsed / 2.5), 2)
 
-# ─── Webhook ──────────────────────────────────────────────────────────────────
+# ─── Webhook ───────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def on_startup():
     await bot.set_webhook(f"{APP_URL}/webhook")
@@ -65,14 +67,16 @@ async def start(message: types.Message):
         reply_markup=markup
     )
 
-# ─── API ──────────────────────────────────────────────────────────────────────
+# ─── API ───────────────────────────────────────────────────────────────────────
 @app.get("/api/get_user")
 async def get_user(request: Request, user_id: int, name: str):
     init_data = request.headers.get("X-Init-Data", "")
     if APP_URL and not validate_init_data(init_data):
         raise HTTPException(status_code=403, detail="Invalid initData")
+
     with sqlite3.connect("database.db") as conn:
-        row = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,)).fetchone()
+        cursor = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
         if not row:
             conn.execute("INSERT INTO users (id, name, balance) VALUES (?, ?, ?)", (user_id, name, 5000))
             return {"balance": 5000}
@@ -83,45 +87,30 @@ async def place_bet(request: Request, user_id: int, bet: int):
     init_data = request.headers.get("X-Init-Data", "")
     if APP_URL and not validate_init_data(init_data):
         raise HTTPException(status_code=403, detail="Invalid initData")
+
     if bet <= 0:
         raise HTTPException(status_code=400, detail="Bet must be positive")
+
     with sqlite3.connect("database.db") as conn:
-        row = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,)).fetchone()
+        cursor = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
-        if row[0] < bet:
+        balance = row[0]
+        if balance < bet:
             raise HTTPException(status_code=400, detail="Insufficient balance")
-        conn.execute("UPDATE users SET balance = ? WHERE id = ?", (row[0] - bet, user_id))
 
+        new_balance = balance - bet
+        conn.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
+
+    crash_point = generate_crash_point()
+    start_time  = time.time()
     active_games[user_id] = {
-        "start_time":  time.time(),
-        "crash_point": generate_crash_point(),
+        "start_time":  start_time,
+        "crash_point": crash_point,
         "bet":         bet
     }
-    return {"status": "ok", "new_balance": row[0] - bet}
-
-# ─── Tick: сервер — единственный источник правды ──────────────────────────────
-# Фронт дёргает каждые 100мс, сервер отдаёт текущий mult и elapsed.
-# Если время вышло — сервер сам крашит игру и возвращает status=crashed.
-@app.get("/api/tick")
-async def tick(request: Request, user_id: int):
-    init_data = request.headers.get("X-Init-Data", "")
-    if APP_URL and not validate_init_data(init_data):
-        raise HTTPException(status_code=403, detail="Invalid initData")
-
-    game = active_games.get(user_id)
-    if not game:
-        return {"status": "no_game"}
-
-    elapsed      = time.time() - game["start_time"]
-    current_mult = calc_mult(elapsed)
-    crash_point  = game["crash_point"]
-
-    if current_mult >= crash_point:
-        del active_games[user_id]
-        return {"status": "crashed", "crash_point": crash_point}
-
-    return {"status": "running", "mult": current_mult, "elapsed": round(elapsed, 3)}
+    return {"status": "ok", "new_balance": new_balance, "server_time": start_time}
 
 @app.post("/api/cashout")
 async def cashout(request: Request, user_id: int):
@@ -136,6 +125,7 @@ async def cashout(request: Request, user_id: int):
     elapsed      = time.time() - game["start_time"]
     current_mult = calc_mult(elapsed)
     crash_point  = game["crash_point"]
+
     del active_games[user_id]
 
     if current_mult < crash_point:

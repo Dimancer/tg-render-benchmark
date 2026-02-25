@@ -65,23 +65,31 @@
     const ctx      = canvas.getContext('2d');
     const multText = document.getElementById('multiplier');
 
-    let balance        = 0;
-    let isRunning      = false;
-    let currentMult    = 1.00;
-    let currentElapsed = 0;
-    let tickInterval;
-    let userId;
+    let balance     = 0;
+    let isRunning   = false;
+    let localStart  = 0;
+    let currentMult = 1.00;
+    let animationId;
 
+    // Единая формула множителя — совпадает с сервером
+    function calcMult(elapsedSec) {
+        return Math.pow(1.08, elapsedSec / 2.5);
+    }
+
+    // fetch с initData в заголовке для валидации на сервере
     function apiFetch(url, options = {}) {
         return fetch(url, {
             ...options,
-            headers: { ...(options.headers || {}), 'X-Init-Data': tg.initData }
+            headers: {
+                ...(options.headers || {}),
+                'X-Init-Data': tg.initData
+            }
         });
     }
 
     function resize() {
-        canvas.width  = window.innerWidth * window.devicePixelRatio;
-        canvas.height = 350 * window.devicePixelRatio;
+        canvas.width  = window.innerWidth  * window.devicePixelRatio;
+        canvas.height = 350               * window.devicePixelRatio;
         ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     }
     window.onresize = resize;
@@ -89,8 +97,7 @@
 
     async function init() {
         const user = tg.initDataUnsafe.user;
-        userId = user.id;
-        const res = await apiFetch(`/api/get_user?user_id=${userId}&name=${encodeURIComponent(user.first_name)}`);
+        const res  = await apiFetch(`/api/get_user?user_id=${user.id}&name=${encodeURIComponent(user.first_name)}`);
         if (!res.ok) return;
         const data = await res.json();
         balance = data.balance;
@@ -102,7 +109,10 @@
     }
 
     async function handleAction() {
-        const btn = document.getElementById('actionBtn');
+        const userId = tg.initDataUnsafe.user.id;
+        const btn    = document.getElementById('actionBtn');
+
+        // Блокировка от двойного нажатия
         btn.disabled = true;
 
         if (!isRunning) {
@@ -117,9 +127,11 @@
             }
 
             const data = await res.json();
-            balance = data.new_balance;
+            balance    = data.new_balance;
+            // Старт от момента получения ответа — нет дрейфа часов
+            localStart = Date.now() / 1000;
             updateUI();
-            startGame();
+            startAnimation();
             btn.innerText = 'ЗАБРАТЬ';
             btn.className = 'main-btn btn-cash';
             btn.disabled  = false;
@@ -127,15 +139,15 @@
         } else {
             const res  = await apiFetch(`/api/cashout?user_id=${userId}`, { method: 'POST' });
             const data = await res.json();
-            stopGame();
 
+            stopAnimation();
             if (data.status === 'win') {
                 balance = data.new_balance;
                 tg.HapticFeedback.notificationOccurred('success');
                 multText.style.color = '#00FF85';
                 addHistory(data.mult.toFixed(2), true);
             } else {
-                showCrash(data.crash_point);
+                crash(data.crash_point);
             }
             updateUI();
             btn.innerText = 'СДЕЛАТЬ СТАВКУ';
@@ -144,65 +156,26 @@
         }
     }
 
-    // ── Tick loop: фронт только рисует то что вернул сервер ──────────────────
-    function startGame() {
-        isRunning      = true;
-        currentMult    = 1.00;
-        currentElapsed = 0;
+    function startAnimation() {
+        isRunning = true;
         multText.style.color = 'white';
-        multText.innerText   = '1.00x';
-        draw(0, 1.00);
-
-        tickInterval = setInterval(async () => {
-            if (!isRunning) return;
-            try {
-                const res  = await apiFetch(`/api/tick?user_id=${userId}`);
-                const data = await res.json();
-
-                if (data.status === 'crashed') {
-                    stopGame();
-                    showCrash(data.crash_point);
-                    const btn = document.getElementById('actionBtn');
-                    btn.innerText = 'СДЕЛАТЬ СТАВКУ';
-                    btn.className = 'main-btn btn-bet';
-                    btn.disabled  = false;
-                    return;
-                }
-
-                if (data.status === 'running') {
-                    currentMult    = data.mult;
-                    currentElapsed = data.elapsed;
-                    multText.innerText = currentMult.toFixed(2) + 'x';
-                    draw(currentElapsed, currentMult);
-                }
-            } catch (e) {
-                // сеть упала — ждём следующего тика
-            }
-        }, 100);
+        animate();
     }
 
-    function stopGame() {
-        isRunning = false;
-        clearInterval(tickInterval);
+    function animate() {
+        if (!isRunning) return;
+        const elapsed = (Date.now() / 1000) - localStart;
+        currentMult   = calcMult(elapsed);
+        multText.innerText = currentMult.toFixed(2) + 'x';
+        draw(elapsed);
+        animationId = requestAnimationFrame(animate);
     }
 
-    // ── Draw ──────────────────────────────────────────────────────────────────
-    // Формула та же что на сервере: 1.08 ^ (t / 2.5)
-    // При t=0: 1.08^0 = 1.00 → график ВСЕГДА начинается с 1.00, не с 0
-    function calcMult(t) {
-        return Math.pow(1.08, t / 2.5);
-    }
-
-    function draw(elapsed, mult) {
+    function draw(elapsed) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const w = canvas.width  / window.devicePixelRatio;
         const h = canvas.height / window.devicePixelRatio;
-
-        // scaleY: (mult - 1.0) отображается на высоту канваса
-        // При mult=1.00: Y = h-20 (самый низ). Растёт вверх.
-        const scaleY = (h - 40) / Math.max(mult - 1.0 + 0.5, 1.5);
-        const scaleX = w / Math.max(elapsed + 2, 5);
 
         ctx.beginPath();
         ctx.strokeStyle = '#FFB400';
@@ -211,22 +184,19 @@
         ctx.shadowBlur  = 15;
         ctx.shadowColor = 'rgba(255, 180, 0, 0.5)';
 
-        // t=0, mult=1.00 → нижний левый угол
         ctx.moveTo(0, h - 20);
 
-        for (let t = 0.05; t <= elapsed; t += 0.05) {
-            const tx = t * scaleX;
-            const ty = (h - 20) - (calcMult(t) - 1.00) * scaleY;
+        for (let i = 0; i <= elapsed; i += 0.05) {
+            const tx = (i / 10) * w;
+            const ty = (h - 20) - (calcMult(i) * 15);
             ctx.lineTo(tx, ty);
         }
 
-        // Финальная точка — значение от сервера
-        const curX = elapsed * scaleX;
-        const curY = (h - 20) - (mult - 1.00) * scaleY;
+        const curX = (elapsed / 10) * w;
+        const curY = (h - 20) - (currentMult * 15);
         ctx.lineTo(curX, curY);
         ctx.stroke();
 
-        // Светящаяся точка
         ctx.shadowBlur = 25;
         ctx.fillStyle  = 'white';
         ctx.beginPath();
@@ -235,7 +205,13 @@
         ctx.shadowBlur = 0;
     }
 
-    function showCrash(point) {
+    function stopAnimation() {
+        isRunning = false;
+        cancelAnimationFrame(animationId);
+    }
+
+    function crash(point) {
+        stopAnimation();
         multText.innerText   = point.toFixed(2) + 'x';
         multText.style.color = '#FF3E3E';
         tg.HapticFeedback.notificationOccurred('error');
